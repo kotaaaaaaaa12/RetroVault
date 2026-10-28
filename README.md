@@ -18,12 +18,25 @@ with the affected system and game name to investigate the actual failing call.
 
 ## Same-site NES comparison
 
+The next comparison defaults to **4.3.0-pre**. The earlier **4.2.3** condition is
+still selectable. The normal player continues to default to 4.2.3. Each test
+loads its complete matching runtime and cores from its versioned CDN directory;
+cores from different releases are not mixed. Save names include the test release.
+
+The [official 4.3.0-pre release notes](https://github.com/EmulatorJS/EmulatorJS/releases/tag/v4.3.0-pre)
+list the move to rwebaudio and disabling async processing for most cores. This is
+a prerelease comparison, not a proven fix or a default upgrade of all games.
+The two pinned loaders use different conditions for language loading, so the
+comparison sets the correct option for each. Diagnostic reports include the
+configured release, data path, and available runtime version and resolved core.
+
+
 The footer links to `/pages/core-test.html`. Choose the same NES game that reloads
 in the normal player, tap **Start Game**, and play for three minutes. Then choose
 **Finish test** and **Save diagnostic log**. If the page reloads, download the
 previous log on that test page before starting another test.
 
-This page runs EmulatorJS 4.2.3 directly, with threads disabled, without an iframe,
+This page runs a selected pinned EmulatorJS release directly, with threads disabled, without an iframe,
 launcher code, player wrapper code, or the additional Retro Vault save manager.
 It retains native default save timing rather than the normal player's 30-second
 default. Test game names and native settings keys are separate from normal games. Only ordinary

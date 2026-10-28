@@ -74,3 +74,21 @@ fix for the reported device failure. Existing saves are not cleared.
 If the page reloads, save the footer diagnostic JSON before starting another game. A new game replaces the previous session record. A manual close may record `saveFlush` as `saved`, `failed`, `timed-out`, or `not-needed`; the timeout is a recovery path, not a guarantee that a stalled core's latest SRAM reached storage.
 
 The native core memory configuration is unchanged. No arbitrary WebAssembly heap cap, forced core switch, periodic game reset, or save-state restart loop was added. The mitigation does not establish that Safari's underlying issue is fixed.
+
+
+## Standalone comparison result and next release comparison
+
+The submitted v10 standalone NES report records 64 seconds since game start,
+128 MiB current and peak WebAssembly memory, no captured JavaScript errors, and
+`framed: false`. The user reports the same reload symptom. This page did not
+load the launcher, player wrapper, or additional save manager and retained the
+native save interval default. Those integrations are therefore not required to
+reproduce the observed symptom. This does not identify the browser's termination
+reason, prove total memory exhaustion, or eliminate all shared code and settings.
+
+The v11 comparison offers pinned 4.3.0-pre as well as 4.2.3. Upstream's official
+4.3.0-pre notes describe the audio driver change and disabling async for most
+cores. The normal player is not upgraded by this change. Full matching loaders
+and cores are selected together and test save names are separated by release.
+The prerelease condition has not been played on a Safari device here and must
+not be presented as a confirmed fix. No site data or normal saves are cleared.

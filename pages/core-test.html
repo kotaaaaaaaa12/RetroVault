@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0a0a0f">
   <title data-i18n="coreTestTitle">NES comparison test | Retro Vault</title>
-  <script src="/assets/js/i18n.js?v=20261028-10" defer></script>
-  <script src="/assets/js/core-test.js?v=20261028-10" defer></script>
+  <script src="/assets/js/i18n.js?v=20261028-11" defer></script>
+  <script src="/assets/js/core-test.js?v=20261028-11" defer></script>
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0a0a0f; color: #eee; }
     body { margin: 0; padding: 16px; }
@@ -25,7 +25,8 @@
   <main>
     <a href="/" data-i18n="backToGames">Back to games</a>
     <h1 data-i18n="coreTest">NES comparison test</h1>
-    <p data-i18n="coreTestHelp">Choose the same NES game that reloads in the normal player, tap Start Game inside the emulator, and play for three minutes. This page runs without the Retro Vault launcher, player wrapper, or additional save manager. It uses EmulatorJS 4.2.3 with threads disabled.</p>
+    <p data-i18n="coreTestHelp">Choose the same NES game that reloads in the normal player, tap Start Game inside the emulator, and play for three minutes. This page runs the selected EmulatorJS release with threads disabled, without the Retro Vault launcher, player wrapper, or additional save manager.</p>
+    <p data-i18n="coreTestVersionHelp">Try 4.3.0-pre for the next comparison. It changes the audio driver and disables async processing for most cores. It is a prerelease, and this test does not establish that it fixes Safari reloads. The normal player still defaults to 4.2.3.</p>
     <p data-i18n="coreTestSaves">Test saves use a separate game name. Use this page only for testing. Native EmulatorJS save behavior remains at its defaults.</p>
     <div class="controls">
       <label for="language-select"><span data-i18n="language">Language</span>
@@ -33,6 +34,12 @@
           <option value="auto" data-i18n="auto">Auto</option>
           <option value="en">English</option>
           <option value="ja" lang="ja">日本語</option>
+        </select>
+      </label>
+      <label for="test-version"><span data-i18n="coreTestVersion">EmulatorJS version</span>
+        <select id="test-version">
+          <option value="4.3.0-pre" data-i18n="coreTestPreview" selected>4.3.0-pre (comparison)</option>
+          <option value="4.2.3" data-i18n="coreTestStable">4.2.3 (previous test)</option>
         </select>
       </label>
       <label for="test-game"><span data-i18n="games">Games</span><select id="test-game" disabled></select></label>

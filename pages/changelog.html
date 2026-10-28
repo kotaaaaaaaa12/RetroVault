@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-10">
-  <script src="/assets/js/i18n.js?v=20261028-10" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-10" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-11">
+  <script src="/assets/js/i18n.js?v=20261028-11" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-11" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -32,8 +32,15 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-11">
+      <div class="release-meta"><span>20261028-11</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-11" data-i18n="releaseElevenTitle">EmulatorJS release comparison</h2>
+      <ul>
+        <li data-i18n="releaseElevenTest">Added 4.3.0-pre to the standalone NES comparison, using its matching loader and cores. Tests default to this prerelease; the normal player still defaults to 4.2.3. Test save names are separated by release, and diagnostics record the selected release and available runtime information.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-10">
-      <div class="release-meta"><span>20261028-10</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-10</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-10" data-i18n="releaseTenTitle">Standalone NES comparison test</h2>
       <ul>
         <li data-i18n="releaseTenTest">Added a same-site NES test without the launcher, player wrapper, or additional save manager. Test logs are separate from normal player logs. This is a diagnostic comparison, not a confirmed crash fix.</li>

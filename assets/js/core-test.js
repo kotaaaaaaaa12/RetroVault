@@ -4,6 +4,8 @@
   const i18n = window.RetroI18n;
   const key = "retro-vault-core-test-diagnostics";
   const select = document.getElementById("test-game");
+  const version = document.getElementById("test-version");
+  version.value = "4.3.0-pre";
   const start = document.getElementById("test-start");
   const finish = document.getElementById("test-finish");
   const download = document.getElementById("test-download");
@@ -105,14 +107,16 @@
   start.addEventListener("click", () => {
     const game = games[Number(select.value)];
     if (!game || report) return;
+    const release = version.value === "4.2.3" ? "4.2.3" : "4.3.0-pre";
     start.disabled = true;
     select.disabled = true;
     language.disabled = true;
+    version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "20261028-10",
+      appVersion: "20261028-11",
       mode: "standalone-core-test",
-      emulatorVersion: "4.2.3",
+      emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },
       threads: false,
       framed: window.self !== window.top,
@@ -131,15 +135,17 @@
     window.EJS_player = "#game";
     window.EJS_core = game.core;
     window.EJS_gameID = game.id;
-    window.EJS_gameName = "Retro Vault Core Test - " + game.title;
+    window.EJS_gameName = "Retro Vault Core Test " + release + " - " + game.title;
     window.EJS_gameUrl = new URL("/data/roms/" + game.rom.split("/").map(encodeURIComponent).join("/"), location.origin).href;
-    window.EJS_pathtodata = "https://cdn.emulatorjs.org/4.2.3/data/";
+    window.EJS_pathtodata = "https://cdn.emulatorjs.org/" + release + "/data/";
+    report.dataPath = window.EJS_pathtodata;
     window.EJS_threads = false;
     window.EJS_defaultOptions = { ejs_threads: "disabled" };
     window.EJS_startOnLoaded = false;
     window.EJS_DEBUG_XX = false;
     window.EJS_language = i18n.emulatorLocale();
-    window.EJS_disableAutoLang = false;
+    // The two pinned loaders use opposite checks for loading a language file.
+    window.EJS_disableAutoLang = release === "4.2.3" ? false : true;
     if (i18n.language === "ja") {
       localeUrl = URL.createObjectURL(new Blob([JSON.stringify(i18n.emulatorDictionary())], { type: "application/json" }));
       window.EJS_paths = { "ja-JA": localeUrl };
@@ -152,6 +158,9 @@
     window.EJS_onGameStart = () => {
       report.gameStartedAtMs = Date.now();
       report.phase = "running";
+      const emulator = window.EJS_emulator;
+      if (typeof emulator?.ejs_version === "string") report.runtimeVersion = emulator.ejs_version.slice(0, 80);
+      if (typeof emulator?.getCore === "function") report.resolvedCore = String(emulator.getCore()).slice(0, 80);
       finish.hidden = false;
       show("coreTestRunning");
       sample();
@@ -170,7 +179,7 @@
     return response.json();
   }).then(entries => {
     if (!Array.isArray(entries)) throw new Error("Invalid game list.");
-    // Limit this comparison to ordinary NES entries supported by stable 4.2.3.
+    // Both releases use the ROM from an ordinary stable NES entry.
     games = entries.filter(game => game && game.core === "nes" && Number.isInteger(game.id)
       && typeof game.title === "string" && typeof game.rom === "string" && game.rom.length
       && !game.bios && !game.patch && !game.gameParent && !game.dataPath
@@ -182,7 +191,7 @@
       select.appendChild(option);
     });
     select.disabled = start.disabled = games.length === 0;
-    if (previous) show("coreTestPrevious", { seconds: previous.gameElapsedSeconds ?? 0 });
+    if (previous) show("coreTestPrevious", { seconds: previous.gameElapsedSeconds ?? 0, version: previous.emulatorVersion || "unknown" });
     else show(games.length ? "coreTestReady" : "coreTestNoGames");
   }).catch(() => show("databaseError"));
   i18n.apply();

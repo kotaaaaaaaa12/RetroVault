@@ -142,9 +142,11 @@ test('standalone NES comparison excludes custom loaders and preserves normal dia
   });
   assert.equal(env.elements.get('test-game').children.length, 1);
   env.elements.get('test-game').value = '0';
+  env.elements.get('test-version').value = '4.2.3';
   env.elements.get('test-start').click();
   assert.equal(env.window.EJS_startOnLoaded, false);
   assert.equal(env.window.EJS_threads, false);
+  assert.equal(env.window.EJS_disableAutoLang, false);
   assert.equal(env.window.EJS_defaultOptions['save-save-interval'], undefined);
   assert.equal(env.window.EJS_gameUrl, 'https://retro.example/data/roms/Test%20Game.nes');
   assert.notEqual(env.window.EJS_gameName, games[0].title);
@@ -177,6 +179,28 @@ test('standalone comparison keeps a previous report until a new test starts', as
   env.elements.get('test-game').value = '0';
   env.elements.get('test-start').click();
   assert.equal(JSON.parse(shared.getItem('retro-vault-core-test-diagnostics')).gameElapsedSeconds, null);
+});
+
+test('prerelease comparison loads its matching runtime with Japanese translations and separate save names', async () => {
+  const env = await environment(coreTestSource, { browserLanguage: 'ja-JP' });
+  assert.equal(env.elements.get('test-version').value, '4.3.0-pre');
+  env.elements.get('test-game').value = '0';
+  env.elements.get('test-start').click();
+  assert.equal(env.window.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.3.0-pre/data/');
+  assert.equal(env.document.body.children.at(-1).src, env.window.EJS_pathtodata + 'loader.js');
+  assert.equal(env.window.EJS_threads, false);
+  assert.equal(env.window.EJS_language, 'ja-JA');
+  assert.equal(env.window.EJS_disableAutoLang, true);
+  assert.ok(env.window.EJS_paths['ja-JA'].startsWith('blob:'));
+  assert.match(env.window.EJS_gameName, /4\.3\.0-pre/);
+  env.window.EJS_emulator = { ejs_version: '4.3.0-pre', getCore: () => 'fceumm', Module: { HEAPU8: new Uint8Array(64) } };
+  env.window.EJS_onGameStart();
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-core-test-diagnostics'));
+  assert.equal(log.emulatorVersion, '4.3.0-pre');
+  assert.equal(log.runtimeVersion, '4.3.0-pre');
+  assert.equal(log.resolvedCore, 'fceumm');
+  assert.equal(log.wasmHeapBytes, 64);
+  assert.equal(env.elements.get('test-version').disabled, true);
 });
 
 test('old site preference cannot turn threads on for a normal game or local ROM', async () => {
