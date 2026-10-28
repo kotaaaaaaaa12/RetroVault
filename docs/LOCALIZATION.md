@@ -6,6 +6,12 @@ The Workers login, management page, upload controls, validation messages, and
 NES comparison share the same dictionaries and browser language preference.
 Hardware/core identifiers and editable JSON keys retain their technical names.
 
+Game metadata supports `titleEn` and `titleJa`. The current interface language
+selects its corresponding nonempty title, then the other title, then the legacy
+`title`. Search checks all three strings. These display choices do not modify
+the immutable `saveName` used by native browser saves or the game ID used by slots.
+Legacy titles are loaded into the primary title field when edited.
+
 EmulatorJS native translations are based on these v4.2.3 and v4.3.0-pre source files:
 
 - https://github.com/EmulatorJS/EmulatorJS/blob/v4.2.3/data/localization/en-US.json

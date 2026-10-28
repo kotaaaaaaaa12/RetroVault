@@ -6,9 +6,16 @@ export function decode(row) { return { ...JSON.parse(row.config), id: row.id, re
 const text = (value, maximum) => typeof value === 'string' && value.length <= maximum && !/[\u0000-\u001f]/.test(value);
 export function normalize(input, previous, id) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('invalidGame');
-  const allowed = new Set(['id', 'revision', 'status', 'updatedAt', 'title', 'system', 'core', 'coreOverride', 'saveName', 'rom', 'thumbnail', 'bios', 'patch', 'gameParent', 'threads', 'disableCue', 'forceLegacyCores', 'videoRotation', 'ejsVersion', 'dataPath']);
+  const allowed = new Set(['id', 'revision', 'status', 'updatedAt', 'title', 'titleEn', 'titleJa', 'system', 'core', 'coreOverride', 'saveName', 'rom', 'thumbnail', 'bios', 'patch', 'gameParent', 'threads', 'disableCue', 'forceLegacyCores', 'videoRotation', 'ejsVersion', 'dataPath']);
   if (Object.keys(input).some(key => !allowed.has(key))) fail('unsupportedField');
-  const title = typeof input.title === 'string' ? input.title.trim() : '';
+  const localized = input.titleEn !== undefined || input.titleJa !== undefined;
+  const titles = {};
+  for (const field of ['titleEn', 'titleJa']) {
+    if (input[field] !== undefined && typeof input[field] !== 'string') fail('invalidTitle');
+    titles[field] = (input[field] || '').trim();
+    if (!text(titles[field], 180)) fail('invalidTitle');
+  }
+  const title = localized ? titles.titleEn || titles.titleJa : typeof input.title === 'string' ? input.title.trim() : '';
   if (!text(title, 180) || !title) fail('invalidTitle');
   const system = SYSTEMS.find(item => item.id === input.system) || systemFor(input.core);
   if (!system) fail('invalidSystem');
@@ -17,6 +24,7 @@ export function normalize(input, previous, id) {
   const coreOverride = input.coreOverride || '';
   if (coreOverride && !system.cores.includes(coreOverride)) fail('invalidCore');
   const config = { id, title, system: system.id, core, saveName: previous?.saveName || previous?.title || input.saveName || `rv-game-${id}` };
+  if (localized) Object.assign(config, titles);
   if (!text(config.saveName, 180) || !config.saveName) fail('invalidGame');
   if (coreOverride) config.coreOverride = coreOverride;
   for (const field of ['rom', 'thumbnail', 'bios', 'patch', 'gameParent']) {
@@ -44,7 +52,35 @@ export function normalize(input, previous, id) {
   }
   return config;
 }
-export async function allGames(env) { return (await env.DB.prepare('SELECT * FROM games ORDER BY id').all()).results.map(decode); }
+function ordered(games, ids) {
+  const ranks = new Map(ids.map((id, index) => [id, index]));
+  return games.sort((a, b) => (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity) || a.id - b.id);
+}
+export async function catalog(env) {
+  const order = await env.DB.prepare('SELECT * FROM library_order WHERE id=1').first();
+  const games = (await env.DB.prepare('SELECT * FROM games ORDER BY id').all()).results.map(decode);
+  return { games: ordered(games, JSON.parse(order.ids)), orderRevision: order.revision };
+}
+export async function allGames(env) { return (await catalog(env)).games; }
+export async function reorderGames(env, input) {
+  if (!input || !Array.isArray(input.ids) || !Number.isSafeInteger(input.revision) || input.revision < 1 || input.ids.some(id => !Number.isSafeInteger(id) || id <= 0)) fail('invalidOrder');
+  const current = (await env.DB.prepare('SELECT id FROM games').all()).results.map(game => game.id);
+  const ids = new Set(input.ids);
+  if (ids.size !== input.ids.length || ids.size !== current.length || current.some(id => !ids.has(id))) fail('orderConflict', 409);
+  // Insert/delete triggers advance this revision, so membership cannot change
+  // between validation and the atomic compare-and-swap update unnoticed.
+  const result = await env.DB.prepare('UPDATE library_order SET ids=?,revision=revision+1 WHERE id=1 AND revision=?').bind(JSON.stringify(input.ids), input.revision).run();
+  if (!result.meta.changes) fail('orderConflict', 409);
+  return { revision: input.revision + 1 };
+}
+export async function publishedGames(env) {
+  const rows = (await env.DB.prepare("SELECT games.*,files.size AS rom_size FROM games LEFT JOIN files ON files.key=json_extract(games.config,'$.rom') AND files.status='ready' AND files.kind='rom' WHERE games.status='ready' ORDER BY games.id").all()).results;
+  const order = await env.DB.prepare('SELECT ids FROM library_order WHERE id=1').first();
+  return ordered(rows.map(row => {
+    const { revision, status, updatedAt, ...game } = decode(row);
+    return { ...game, romSize: Number.isSafeInteger(row.rom_size) && row.rom_size >= 0 ? row.rom_size : null };
+  }), JSON.parse(order.ids));
+}
 export async function getGame(env, id) {
   if (!Number.isSafeInteger(id) || id <= 0) fail('adminGameNotFound', 404);
   const row = await env.DB.prepare('SELECT * FROM games WHERE id=?').bind(id).first();

@@ -202,7 +202,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-20",
+    appVersion: "20261029-22",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },

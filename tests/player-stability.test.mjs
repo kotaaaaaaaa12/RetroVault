@@ -472,10 +472,10 @@ test('internally handled core errors are surfaced too', async () => {
 test('Auto follows the preferred browser language and an explicit choice is saved', async () => {
   const env = await environment(appSource, { browserLanguage: 'ja-JP' });
   assert.equal(env.window.RetroI18n.language, 'ja');
-  assert.equal(env.elements.get('stats').textContent, '1件中1件');
+  assert.equal(env.elements.get('stats').textContent, '1件中1件（容量不明）');
   assert.equal(vm.runInContext('coreLabel("nes")', env.context), 'ファミコン／NES');
   env.window.RetroI18n.setLanguage('en');
-  assert.equal(env.elements.get('stats').textContent, '1 / 1 GAMES');
+  assert.equal(env.elements.get('stats').textContent, '1 of 1 games (size unavailable)');
   assert.equal(env.window.localStorage.getItem('retro-vault-language'), 'en');
   const persisted = await environment(appSource, { browserLanguage: 'ja-JP', localStorage: { 'retro-vault-language': 'en' } });
   assert.equal(persisted.window.RetroI18n.language, 'en');
@@ -615,7 +615,7 @@ test('locale selection tolerates unavailable browser storage', async () => {
 test('production mode enables caching and the footer links to the official site', async () => {
   const env = await environment(playerSource);
   assert.equal(env.window.EJS_DEBUG_XX, false);
-  assert.match(html, /<a href="https:\/\/emulatorjs\.org\/" target="_blank" rel="noopener noreferrer">EMULATORJS<\/a>/);
+  assert.match(html, /<a href="https:\/\/emulatorjs\.org\/" target="_blank" rel="noopener noreferrer">EmulatorJS<\/a>/);
 });
 
 test('closing pauses the core, flushes saves, closes audio once, and releases the canvas before acknowledging', async () => {
@@ -1120,4 +1120,36 @@ test('diagnostics distinguish time spent loading from elapsed time after the gam
     'retro-vault-diagnostics': JSON.stringify(log)
   }) });
   assert.doesNotMatch(mismatch.elements.get('notice').textContent, /42 seconds/);
+});
+
+test('localized game titles fall back to either title and searches, filter counts, and ROM totals remain consistent', async () => {
+  const catalog = [
+    { id: 1, title: 'First', titleEn: 'First', titleJa: '最初', core: 'nes', rom: 'one.nes', romSize: 40976 },
+    { id: 2, title: '日本語だけ', titleJa: '日本語だけ', core: 'snes', rom: 'two.sfc', romSize: 1048576 },
+    { id: 3, title: 'English Only', titleEn: 'English Only', core: 'snes9x', system: 'snes', rom: 'three.sfc', romSize: 1048576 },
+    { id: 4, title: 'Legacy', core: 'gba', rom: 'four.gba', romSize: 1024 }
+  ];
+  const env = await environment(appSource, { games: catalog, browserLanguage: 'ja-JP' });
+  const api = env.window.RetroI18n;
+  assert.equal(api.gameTitle(catalog[0]), '最初');
+  assert.equal(api.gameTitle(catalog[2]), 'English Only');
+  assert.equal(api.gameTitle(catalog[3]), 'Legacy');
+  const labels = env.elements.get('core-filters').children.map(element => element.textContent);
+  assert.ok(labels.includes('すべて (4)'));
+  assert.ok(labels.some(label => label.includes('スーパーファミコン') && label.endsWith('(2)')));
+  vm.runInContext('state.activeCore = canonicalFilterKey("snes"); renderGrid()', env.context);
+  assert.equal(env.elements.get('stats').textContent, '4件中2件（2.0 MiB）');
+  vm.runInContext('state.activeCore = "all"; state.activeSearch = "first"; renderGrid()', env.context);
+  assert.equal(env.elements.get('stats').textContent, '4件中1件（40.0 KiB）');
+  vm.runInContext('openGame(state.games[0])', env.context);
+  const source = env.elements.get('emulator-frame').src;
+  assert.equal(env.elements.get('modal-title').textContent, '最初');
+  api.setLanguage('en');
+  assert.equal(api.gameTitle(catalog[1]), '日本語だけ');
+  assert.equal(env.elements.get('modal-title').textContent, 'First');
+  assert.equal(env.elements.get('emulator-frame').src, source);
+  vm.runInContext('state.activeSearch = "最初"; renderGrid()', env.context);
+  assert.equal(vm.runInContext('getFilteredGames().length', env.context), 1);
+  vm.runInContext('state.activeSearch = "missing"; renderGrid()', env.context);
+  assert.equal(env.elements.get('stats').textContent, '0 of 4 games (0 B)');
 });

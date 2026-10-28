@@ -130,6 +130,8 @@
 
     render() {
       if (this.closing || !this.opened) return;
+      const gameTitle = document.getElementById("save-game-title");
+      if (gameTitle) gameTitle.textContent = I18n.gameTitle(this.game);
       this.elements["system-save-status"].textContent = this.systemSavedAt
         ? t("systemSavedAt", { date: this.formatDate(this.systemSavedAt) }) : t("systemNotSaved");
       const list = this.elements["save-slots"];
@@ -355,7 +357,7 @@
       if (backup.metadata && !storage.compatible(backup.metadata, this.current())) {
         throw Object.assign(new Error("Mismatch"), { name: "SaveStateMismatch" });
       }
-      if (!backup.metadata && !await this.ask("confirmRawState", { title: this.game.title })) return;
+      if (!backup.metadata && !await this.ask("confirmRawState", { title: I18n.gameTitle(this.game) })) return;
       await this.writeSlot(slot, backup.data);
     }
 

@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="format-detection" content="telephone=no">
   <title data-i18n="adminLoginTitle">Sign in | Retro Vault</title>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20261028-20">
-  <script src="/assets/js/i18n.js?v=20261028-20" defer></script>
-  <script type="module" src="/assets/js/login.js?v=20261028-20"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261029-22">
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20261029-22">
+  <script src="/assets/js/i18n.js?v=20261029-22" defer></script>
+  <script type="module" src="/assets/js/login.js?v=20261029-22"></script>
 </head>
 <body>
   <main class="login">
-    <header><h1>RETRO VAULT</h1><label class="language"><span data-i18n="language">Language</span><select id="language-select"><option value="auto" data-i18n="auto">Auto</option><option value="en">English</option><option value="ja">日本語</option></select></label></header>
+    <header class="vault-header"><a class="vault-brand" href="/">RETRO VAULT</a><label class="language"><span data-i18n="language">Language</span><select id="language-select"><option value="auto" data-i18n="auto">Auto</option><option value="en">English</option><option value="ja">日本語</option></select></label></header>
     <section class="panel">
       <h2 data-i18n="adminSignIn">Sign in</h2>
       <p class="hint" data-i18n="adminLoginHelp">Sign in to add games and manage the library.</p>

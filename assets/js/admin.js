@@ -6,6 +6,7 @@ const t = (key, values) => i18n.t(key, values);
 const element = id => document.getElementById(id);
 let csrf = '';
 let games = [];
+let orderRevision = 0;
 let files = [];
 let model = {};
 let busy = false;
@@ -34,6 +35,7 @@ function setBusy(value) {
     if (['language-select', 'cancel-upload'].includes(control.id)) continue;
     control.disabled = value;
   }
+  updateOrderControls();
 }
 async function api(path, method = 'GET', body, options = {}) {
   const response = await fetch(path, {
@@ -116,7 +118,8 @@ function fill() {
   element('editor-heading').removeAttribute('data-i18n');
   element('editor-heading').textContent = t(model.id ? 'adminEdit' : 'adminAdd');
   element('game-identity').textContent = model.id ? t('adminIdentity', { id: model.id, revision: model.revision }) : t('adminNewIdentity');
-  element('game-title').value = model.title || '';
+  element('game-title').value = model.titleEn ?? (model.titleJa ? '' : model.title || '');
+  element('game-title-ja').value = model.titleJa || '';
   systemOptions(); element('game-system').value = model.system || systemFor(model.core)?.id || 'nes'; coreOptions();
   element('game-status').value = model.status === 'ready' ? 'ready' : 'draft';
   fileChoices(); preview(); syncJson(true);
@@ -133,16 +136,53 @@ function makeButton(key, action) {
 }
 function renderGames() {
   const root = element('admin-games'); root.replaceChildren();
-  const search = element('admin-search').value.toLowerCase();
-  for (const game of games.filter(game => (element('show-trash').checked ? game.status === 'trashed' : game.status !== 'trashed') && game.title.toLowerCase().includes(search))) {
+  const search = element('admin-search').value.trim().toLowerCase();
+  for (const game of games.filter(game => (element('show-trash').checked ? game.status === 'trashed' : game.status !== 'trashed') && [game.title, game.titleEn, game.titleJa].filter(Boolean).join('\n').toLowerCase().includes(search))) {
     const row = document.createElement('section'); row.className = 'game-row';
-    const title = document.createElement('strong'); title.textContent = game.title;
+    row.dataset.gameId = String(game.id);
+    const title = document.createElement('strong'); title.textContent = i18n.gameTitle(game);
     const info = document.createElement('small'); info.textContent = `#${game.id} · ${game.system || game.core} · ${game.coreOverride || game.core} · ` + t(game.status === 'ready' ? 'adminReady' : game.status === 'trashed' ? 'adminTrashed' : 'adminDraft');
     const actions = document.createElement('div'); actions.className = 'actions';
     if (game.status !== 'trashed') actions.append(makeButton('adminEdit', () => selectGame(game)), makeButton('adminTrash', () => changeGame(game, 'trash')));
     else actions.append(makeButton('adminRestore', () => changeGame(game, 'restore')), makeButton('adminDeleteEntry', () => changeGame(game, 'delete')));
+    if (game.status !== 'trashed') {
+      const order = document.createElement('div'); order.className = 'game-order actions';
+      for (const [key, direction, action] of [['adminMoveUp', -1, 'up'], ['adminMoveDown', 1, 'down']]) {
+        const button = makeButton(key, () => moveGame(game, direction));
+        button.dataset.orderAction = action; button.dataset.gameId = String(game.id);
+        button.setAttribute('aria-label', t(key) + ': ' + i18n.gameTitle(game));
+        order.appendChild(button);
+      }
+      row.appendChild(order);
+    }
     row.append(title, info, actions); root.appendChild(row);
   }
+  updateOrderControls();
+}
+function updateOrderControls() {
+  const active = games.filter(game => game.status !== 'trashed');
+  const searching = !!element('admin-search').value.trim();
+  for (const button of document.querySelectorAll('[data-order-action]')) {
+    const index = active.findIndex(game => String(game.id) === button.dataset.gameId);
+    button.disabled = busy || searching || index < 0 || (button.dataset.orderAction === 'up' ? index === 0 : index === active.length - 1);
+  }
+}
+async function moveGame(game, direction) {
+  if (busy || element('admin-search').value.trim()) return;
+  const active = games.filter(item => item.status !== 'trashed');
+  const neighbor = active[active.findIndex(item => item.id === game.id) + direction];
+  if (!neighbor) return;
+  const ids = games.map(item => item.id);
+  const from = ids.indexOf(game.id), to = ids.indexOf(neighbor.id);
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  setBusy(true);
+  try {
+    await api('/api/admin/order', 'POST', { ids, revision: orderRevision });
+    await refresh(); show('adminOrderSaved');
+  } catch (error) {
+    if (error.message === 'orderConflict') await refresh();
+    problem(error);
+  } finally { setBusy(false); }
 }
 function renderFiles() {
   element('storage-summary').textContent = t('adminStorageSummary', { count: files.length, size: bytes(files.reduce((total, file) => total + (file.status === 'ready' ? file.size : 0), 0)) });
@@ -160,11 +200,12 @@ function renderFiles() {
   }
 }
 async function refresh() {
-  [games, files] = await Promise.all([api('/api/admin/games'), api('/api/admin/files')]);
+  const [catalog, storedFiles] = await Promise.all([api('/api/admin/catalog'), api('/api/admin/files')]);
+  games = catalog.games; orderRevision = catalog.orderRevision; files = storedFiles;
   renderGames(); renderFiles(); fileChoices();
 }
 async function changeGame(game, action) {
-  if (busy || !await ask(action === 'delete' ? 'adminConfirmDeleteEntry' : action === 'trash' ? 'adminConfirmTrash' : 'adminConfirmRestore', { title: game.title })) return;
+  if (busy || !await ask(action === 'delete' ? 'adminConfirmDeleteEntry' : action === 'trash' ? 'adminConfirmTrash' : 'adminConfirmRestore', { title: i18n.gameTitle(game) })) return;
   setBusy(true);
   try {
     await api('/api/admin/games/' + game.id + (action === 'delete' ? '' : '/' + action), action === 'delete' ? 'DELETE' : 'POST', { revision: game.revision });
@@ -262,7 +303,7 @@ async function upload(field, kind, originals) {
           selected = true; model[field] = stored.key; dirty = true;
           if (kind === 'rom') {
             restoreRomSystem(previousSystem); selectRomSystem(original.name);
-            if (!model.id && !model.title) { model.title = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
+            if (!model.id && !i18n.gameTitle(model)) { model.title = model.titleEn = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
           }
           syncJson(); preview();
         }
@@ -313,7 +354,11 @@ for (const [field, kind, key] of fields) {
   const choose = makeButton(chooseKey, () => input.click()); choose.dataset.i18n = chooseKey;
   label.append(title, choose, input, select, current); group.appendChild(label); element('file-fields').appendChild(group);
 }
-element('game-title').addEventListener('input', event => { model.title = event.target.value; dirty = true; syncJson(); });
+for (const id of ['game-title', 'game-title-ja']) element(id).addEventListener('input', () => {
+  model.titleEn = element('game-title').value; model.titleJa = element('game-title-ja').value;
+  model.title = model.titleEn.trim() || model.titleJa.trim();
+  dirty = true; syncJson();
+});
 element('game-system').addEventListener('change', event => { model.system = model.core = event.target.value; delete model.coreOverride; dirty = true; coreOptions(); syncJson(); event.target.blur(); });
 element('game-core').addEventListener('change', event => { if (event.target.value) model.coreOverride = event.target.value; else delete model.coreOverride; dirty = true; syncJson(); event.target.blur(); });
 element('game-status').addEventListener('change', event => { model.status = event.target.value; dirty = true; syncJson(); event.target.blur(); });
@@ -321,7 +366,7 @@ element('game-json').addEventListener('input', () => { jsonDirty = dirty = true;
 element('apply-json').addEventListener('click', () => {
   try {
     const config = JSON.parse(element('game-json').value);
-    if (!config || typeof config !== 'object' || Array.isArray(config) || (model.id && config.id !== model.id) || typeof config.title !== 'string') throw new Error('invalidJson');
+    if (!config || typeof config !== 'object' || Array.isArray(config) || (model.id && config.id !== model.id) || !['title', 'titleEn', 'titleJa'].some(key => typeof config[key] === 'string')) throw new Error('invalidJson');
     model = { ...config, id: model.id, revision: model.revision, saveName: model.saveName || config.saveName };
     dirty = true; fill(); show('adminJsonApplied');
   } catch { problem(new Error('invalidJson')); }
@@ -329,6 +374,9 @@ element('apply-json').addEventListener('click', () => {
 element('game-form').addEventListener('submit', async event => {
   event.preventDefault(); if (busy) return;
   if (jsonDirty) { show('adminApplyJsonFirst', {}, true); return; }
+  model.titleEn = element('game-title').value.trim(); model.titleJa = element('game-title-ja').value.trim();
+  model.title = model.titleEn || model.titleJa;
+  if (!model.title) { show('invalidTitle', {}, true); return; }
   setBusy(true);
   try {
     model = await api('/api/admin/games' + (model.id ? '/' + model.id : ''), model.id ? 'PUT' : 'POST', model);

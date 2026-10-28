@@ -1,6 +1,6 @@
 import { initialize } from './schema.mjs';
 import { authorize, cookieName, fail, json, login, readJson, session } from './auth.mjs';
-import { allGames, changeStatus, importGames, saveGame } from './games.mjs';
+import { allGames, catalog, changeStatus, importGames, publishedGames, reorderGames, saveGame } from './games.mjs';
 import { completeUpload, createUpload, removeFile, serveFile, uploadFile, uploadPart } from './files.mjs';
 
 function redirect(request, next) {
@@ -32,7 +32,7 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': `${cookieName}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0` });
   }
   if ((path === '/api/games' || path === '/data/games.json' || path === '/games.json') && get) {
-    return json((await allGames(env)).filter(game => game.status === 'ready').map(({ revision, status, updatedAt, ...game }) => game));
+    return json(await publishedGames(env));
   }
   if (path.startsWith('/data/') && get) {
     const match = /^\/data\/(roms|thumbs|bios)\/(.+)$/.exec(path);
@@ -41,6 +41,8 @@ async function route(request, env) {
   }
   if (path.startsWith('/api/admin/')) {
     const current = await authorize(request, env, !get);
+    if (path === '/api/admin/catalog' && get) return json(await catalog(env));
+    if (path === '/api/admin/order' && request.method === 'POST') return json(await reorderGames(env, await readJson(request)));
     if (path === '/api/admin/games' && get) return json(await allGames(env));
     if (path === '/api/admin/games' && request.method === 'POST') return json(await saveGame(env, await readJson(request)), 201);
     if (path === '/api/admin/import' && request.method === 'POST') return json(await importGames(env, await readJson(request)));

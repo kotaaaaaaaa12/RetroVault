@@ -6,12 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <title data-i18n="playerTitle">Retro Vault Player</title>
-  <link rel="stylesheet" href="/assets/css/player.css?v=20261028-20">
-  <script src="/assets/js/i18n.js?v=20261028-20" defer></script>
-  <script src="/assets/js/save-storage.js?v=20261028-20" defer></script>
-  <script src="/assets/js/saves.js?v=20261028-20" defer></script>
-  <script src="/assets/js/runtime-support.js?v=20261028-20" defer></script>
-  <script src="/assets/js/player.js?v=20261028-20" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261029-22">
+  <link rel="stylesheet" href="/assets/css/player.css?v=20261029-22">
+  <script src="/assets/js/i18n.js?v=20261029-22" defer></script>
+  <script src="/assets/js/save-storage.js?v=20261029-22" defer></script>
+  <script src="/assets/js/saves.js?v=20261029-22" defer></script>
+  <script src="/assets/js/runtime-support.js?v=20261029-22" defer></script>
+  <script src="/assets/js/player.js?v=20261029-22" defer></script>
 </head>
 <body>
   <div id="game"></div>
@@ -20,8 +24,9 @@
     <button id="save-manager-toggle" class="ejs_menu_button rv-menu-saves" type="button" data-i18n="localSaves" hidden>Saves</button>
     <section id="save-manager" class="rv-save-overlay" role="dialog" aria-modal="true" aria-labelledby="save-manager-heading" hidden>
       <div class="rv-save-panel">
+        <div class="rv-save-brandline"><span class="vault-brand">RETRO VAULT</span></div>
         <div class="rv-save-header">
-          <h2 id="save-manager-heading" tabindex="-1" data-i18n="saveManagerTitle">Saves on this device</h2>
+          <div><h2 id="save-manager-heading" tabindex="-1" data-i18n="saveManagerTitle">Saves on this device</h2><p id="save-game-title" class="rv-save-game-title"></p></div>
           <button id="save-manager-close" type="button" data-i18n="backToGame">Back to game</button>
         </div>
         <p class="rv-save-help" data-i18n="saveManagerHelp">Game saves keep the progress recorded in the game's save menu. State slots capture the current moment.</p>

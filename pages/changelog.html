@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-20">
-  <script src="/assets/js/i18n.js?v=20261028-20" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-20" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261029-22">
+  <script src="/assets/js/i18n.js?v=20261029-22" defer></script>
+  <script src="/assets/js/changelog.js?v=20261029-22" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -33,8 +33,25 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-22">
+      <div class="release-meta"><span>20261029-22</span><time datetime="2026-10-29">2026-10-29</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-22" data-i18n="releaseTwentyTwoTitle">Choose the game order</h2>
+      <ul>
+        <li data-i18n="releaseTwentyTwoOrder">Use Up and Down in management to change the library order. Each change saves immediately and is used by the public library, search results, and system filters. New games append at the end.</li>
+        <li data-i18n="releaseTwentyTwoSafety">Reordering preserves game IDs, saves, and unsaved editor content. Stale ordering changes are rejected, and JSON export/import retains the array order.</li>
+      </ul>
+    </article>
+    <article class="release" aria-labelledby="release-21">
+      <div class="release-meta"><span>20261028-21</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <h2 id="release-21" data-i18n="releaseTwentyOneTitle">Unified Vault design and bilingual game titles</h2>
+      <ul>
+        <li data-i18n="releaseTwentyOneDesign">Library management and device saves share the Vault colors, pixel logo, and panel styling. Search, language, and local ROM controls sit in the library header.</li>
+        <li data-i18n="releaseTwentyOneTitles">English and Japanese titles can be entered separately. A single title is used in both languages, search matches both, and native save identifiers remain fixed.</li>
+        <li data-i18n="releaseTwentyOneCounts">System filters show game counts. The list summary includes the combined ROM size of the games currently shown. Updated the footer to Powered by EmulatorJS while retaining the Japanese separator.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-20">
-      <div class="release-meta"><span>20261028-20</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-20</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-20" data-i18n="releaseTwentyTitle">Mobile startup audio compatibility and input diagnostics</h2>
       <ul>
         <li data-i18n="releaseTwentyAudio">Replaced the prerelease mobile Safari audio check that assumes an OpenAL context exists. Existing suspended audio can resume during a trusted tap without consuming the control input or opening an audio-wait popup.</li>
@@ -201,7 +218,7 @@
   </main>
   <footer>
     <nav class="footer-links" aria-label="Site links" data-i18n-aria-label="siteLinks"><a href="/pages/changelog.html" data-i18n="changelog">Changelog</a></nav>
-    <span data-i18n="poweredBy">POWERED BY</span> <a href="https://emulatorjs.org/" target="_blank" rel="noopener noreferrer">EMULATORJS</a>
+    <span data-i18n="poweredBy">Powered by</span> <a href="https://emulatorjs.org/" target="_blank" rel="noopener noreferrer">EmulatorJS</a>
   </footer>
 </body>
 </html>

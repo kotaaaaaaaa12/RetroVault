@@ -1,0 +1,31 @@
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface-2: #171722;
+  --border: #242438;
+  --accent: #ff2d55;
+  --accent-2: #00aaff;
+  --accent-3: #ffe600;
+  --text: #e8e8f0;
+  --muted: #9a9ab0;
+  --danger: #ff5d72;
+  --success: #65e7a4;
+  --vault-font: "Share Tech Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+.vault-brand {
+  display: inline-block;
+  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-size: clamp(.9rem, 2.3vw, 1.4rem);
+  line-height: 1.8;
+  letter-spacing: .08em;
+  text-decoration: none;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent-3) 52%, var(--accent));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.vault-kicker { display: block; color: var(--muted); font-size: .75rem; letter-spacing: .12em; margin-top: 8px; }
+.vault-header { border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

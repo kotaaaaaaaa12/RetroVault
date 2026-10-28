@@ -528,18 +528,20 @@ function buildFilterButtons() {
   all.type = "button";
   all.className = "filter-btn" + (state.activeCore === "all" ? " active" : "");
   all.dataset.core = "all";
-  all.textContent = t("all");
+  all.textContent = t("all") + " (" + state.games.length + ")";
   elements.filters.replaceChildren(all);
   const unique = new Map();
 
   for (const game of state.games) {
-    const key = canonicalFilterKey(game.core);
+    const system = game.system || game.core;
+    const key = canonicalFilterKey(system);
     if (!unique.has(key)) {
       unique.set(key, {
         key,
-        label: coreLabel(game.core)
+        label: coreLabel(system), count: 0
       });
     }
+    unique.get(key).count++;
   }
 
   const sorted = [...unique.values()].sort((a, b) => a.label.localeCompare(b.label, I18n.language));
@@ -549,15 +551,15 @@ function buildFilterButtons() {
     button.type = "button";
     button.className = "filter-btn" + (state.activeCore === item.key ? " active" : "");
     button.dataset.core = item.key;
-    button.textContent = item.label;
+    button.textContent = item.label + " (" + item.count + ")";
     elements.filters.appendChild(button);
   }
 }
 
 function getFilteredGames() {
   return state.games.filter(game => {
-    const coreMatch = state.activeCore === "all" || canonicalFilterKey(game.core) === state.activeCore;
-    const searchMatch = !state.activeSearch || game.title.toLowerCase().includes(state.activeSearch);
+    const coreMatch = state.activeCore === "all" || canonicalFilterKey(game.system || game.core) === state.activeCore;
+    const searchMatch = !state.activeSearch || [game.title, game.titleEn, game.titleJa].filter(Boolean).join("\n").toLowerCase().includes(state.activeSearch);
     return coreMatch && searchMatch;
   });
 }
@@ -567,7 +569,7 @@ function createGameCard(game, index) {
   card.type = "button";
   card.className = "game-card";
   card.style.animationDelay = `${Math.min(index * 28, 360)}ms`;
-  card.setAttribute("aria-label", t("playGame", { title: game.title }));
+  card.setAttribute("aria-label", t("playGame", { title: I18n.gameTitle(game) }));
 
   const thumbWrap = document.createElement("div");
   thumbWrap.className = "thumb-wrap";
@@ -620,11 +622,11 @@ function createGameCard(game, index) {
 
   const title = document.createElement("div");
   title.className = "card-title";
-  title.textContent = game.title;
+  title.textContent = I18n.gameTitle(game);
 
   const core = document.createElement("div");
   core.className = "card-core";
-  core.textContent = coreLabel(game.core);
+  core.textContent = coreLabel(game.system || game.core);
 
   info.append(title, core);
   card.append(thumbWrap, info);
@@ -636,15 +638,16 @@ function createGameCard(game, index) {
 function renderGrid() {
   const filtered = getFilteredGames();
   elements.grid.replaceChildren();
+  const knownSizes = filtered.every(game => Number.isSafeInteger(game.romSize) && game.romSize >= 0);
+  const size = knownSizes ? I18n.formatBytes(filtered.reduce((sum, game) => sum + game.romSize, 0)) : t("sizeUnavailable");
+  elements.stats.textContent = t("gameCount", { shown: filtered.length, total: state.games.length, size });
 
   if (filtered.length === 0) {
     elements.empty.hidden = false;
-    elements.stats.textContent = state.games.length === 0 ? "" : t("gameCount", { shown: 0, total: state.games.length });
     return;
   }
 
   elements.empty.hidden = true;
-  elements.stats.textContent = t("gameCount", { shown: filtered.length, total: state.games.length });
 
   const fragment = document.createDocumentFragment();
   filtered.forEach((game, index) => fragment.appendChild(createGameCard(game, index)));
@@ -673,7 +676,7 @@ function openGame(game) {
 
   state.openGameId = game.id;
   state.activeGame = game;
-  elements.modalTitle.textContent = game.title;
+  elements.modalTitle.textContent = I18n.gameTitle(game);
   elements.modalMeta.textContent = coreLabel(game.core);
   resetPlayerStatus(game);
   elements.modal.classList.add("open");
@@ -847,6 +850,7 @@ I18n.onChange(() => {
   renderGrid();
   renderNotice();
   if (state.activeGame) {
+    elements.modalTitle.textContent = I18n.gameTitle(state.activeGame);
     elements.modalMeta.textContent = state.localLaunch
       ? t("localMeta", { system: coreLabel(state.activeGame.core) })
       : coreLabel(state.activeGame.core);

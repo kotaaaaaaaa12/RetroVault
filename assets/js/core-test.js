@@ -34,6 +34,7 @@
   language.addEventListener("change", () => i18n.setLanguage(language.value));
   i18n.onChange(() => {
     language.value = i18n.mode;
+    for (const option of select.children) if (games[Number(option.value)]) option.textContent = i18n.gameTitle(games[Number(option.value)]);
     show(message, values);
   });
 
@@ -114,7 +115,7 @@
     version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "20261028-20",
+      appVersion: "20261029-22",
       mode: "standalone-core-test",
       emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },
@@ -187,7 +188,7 @@
     games.forEach((game, index) => {
       const option = document.createElement("option");
       option.value = String(index);
-      option.textContent = game.title;
+      option.textContent = i18n.gameTitle(game);
       select.appendChild(option);
     });
     select.disabled = start.disabled = games.length === 0;

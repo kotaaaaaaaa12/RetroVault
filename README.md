@@ -107,6 +107,17 @@ diagnostic-log download when a log is available. Management is linked from the
 header instead. Auto, English, and Japanese localization is shared across pages.
 Safari phone-number detection is disabled on HTML pages.
 
+The library header places search, language, and local ROM controls at the upper
+right. System filters show counts for the full published library. The bottom
+summary shows the filtered game count and sum of each displayed entry's ROM bytes,
+excluding thumbnails, BIOS, patches, drafts, and trash. This is a library ROM total,
+not an R2 storage/billing total. Missing ROM metadata displays an unknown-size
+label rather than silently treating missing sizes as zero.
+
+The public catalog includes a read-only `romSize` field derived from stored file
+metadata; catalog exports do not include it. Management and device saves use the
+same Vault palette, square panels, pixel logo, and shared `vault-theme.css`.
+
 ## Add and edit games
 
 1. Open `/admin/` and choose **Add game**.
@@ -116,7 +127,10 @@ Safari phone-number detection is disabled on HTML pages.
    when editing an existing game. Choosing another ROM for the same system keeps
    its custom core. You can change the detected system or core afterward.
    Ambiguous extensions such as ZIP, BIN, and ISO keep the current manual choice.
-3. Enter the title and choose the system. The core defaults to that system's core,
+3. Enter an English title, a Japanese title, or both, and choose the system. The
+   interface prefers its current language and falls back to the other title.
+   Both titles are searchable. Existing legacy `title` entries still display;
+   their title is loaded into the primary title field when edited. The core defaults to that system's core,
    with supported alternate cores available in the dropdown.
 4. Upload or select a thumbnail. PNG, JPEG, and WebP uploads up to 10 MiB are
    resized to at most 1024 pixels per side and encoded as WebP in the browser.
@@ -155,6 +169,26 @@ files explicitly in File storage; references from drafts and trash also protect
 files from deletion. Storage totals describe completed catalog files, not an exact
 Cloudflare bill or the size of incomplete multipart data.
 
+## Change game order
+
+Use **Up** and **Down** beside a game in management. Each move saves immediately
+to D1; no separate save button is required for ordering. Clear search before
+moving entries. Drafts participate in the same order, and trash does not show
+move controls. Public lists, search results, system-filtered lists, and the NES
+comparison retain the saved relative order. Other open library pages update on
+reload. New entries append at the end.
+
+Reordering changes neither game IDs nor save names and does not submit or discard
+unsaved editor fields. An order revision prevents an older tab from overwriting
+a newer order; additions and permanent removals advance that revision as well.
+On conflict, management refreshes the list and keeps the editor intact.
+
+The order table and triggers are initialized automatically on deployment use;
+existing databases begin in their previous ID order. JSON export lists entries
+in saved order, and import appends them in the supplied array order. Restoring a
+trashed entry retains its position; removing it permanently removes its order
+entry. No separate database migration command is needed.
+
 ## Import the existing library
 
 The old `data/games.json` is not uploaded as a static asset. Import it from the
@@ -167,7 +201,7 @@ The export downloads the catalog, including draft/trash status, as JSON. Import
 adds entries only; use each entry's editor to update an existing ID. A ROM or BIOS
 is never included in a JSON export or in this source ZIP.
 
-Supported configuration fields include `id`, `title`, `system`, `core`,
+Supported configuration fields include `id`, `title`, `titleEn`, `titleJa`, `system`, `core`,
 `coreOverride`, `saveName`, `rom`, `thumbnail`, `bios`, `patch`, `gameParent`,
 `threads`, `videoRotation`, `disableCue`, `forceLegacyCores`, `ejsVersion`, and
 `dataPath`. The system/core options are based on the pinned 4.3.0-pre core list.
