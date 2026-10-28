@@ -1,11 +1,11 @@
-# Retro Vault / EmulatorJS
+# Retro Vault
 
 A small JSON-driven EmulatorJS game library.
 
 ## Project layout
 
 ```text
-EmulatorJS/
+Retrovault/
 ├── index.html
 ├── README.md
 ├── coi-sw.js
@@ -18,6 +18,8 @@ EmulatorJS/
 │       ├── player.js
 │       ├── i18n.js
 │       ├── changelog.js
+│       ├── save-storage.js
+│       ├── saves.js
 │       └── coi.js
 ├── data/
 │   ├── games.json
@@ -40,6 +42,58 @@ EmulatorJS/
 - `data/roms/` - your legally obtained game files
 - `data/thumbs/` - thumbnail files
 - `data/bios/` - optional BIOS files you are allowed to use
+
+## Saves on this device
+
+Open **Saves** in the player header or the in-game corner button. The panel is
+also available inside the native fullscreen element. Opening it pauses a running
+game; closing it resumes only a game paused by this panel.
+
+- Game saves: use the game's own save menu first. The initial native write
+  interval is 30 seconds. The panel can also request an immediate write, and
+  closing the player flushes pending writes. A timestamp is shown only after
+  the filesystem reports success and a game save file exists.
+- State slots: three per game, stored in IndexedDB with timestamps. States are
+  captured only on manual actions, never on a timer. Saving, loading, and
+  deleting use the visible panel; replacing or deleting an existing slot and
+  loading over current progress require confirmation.
+- Backups: export a slot or the current state as `.rvstate`, then import it into
+  a slot on another device. The wrapper records game, core, and EmulatorJS
+  version information. Known mismatches are rejected. Raw `.state` files can be
+  imported after a warning because their origin cannot be checked.
+- Earlier browser states: the panel can copy the native browser state for the
+  current game into slot 1 after confirmation. It does not remove the original.
+  Existing native game saves and downloaded backups are not deleted or moved.
+- Game save file import/export remains available in the native EmulatorJS menu.
+
+Saves remain local to the browser and origin. Renaming the GitHub repository
+does not change this origin; changing the deployed domain does. Site-data
+deletion, private browsing limitations, or browser eviction can remove local
+saves. Download backups for anything important. There is no cloud sync.
+
+The first launch of this update migrates saved native storage and interval
+preferences to the new defaults once. Later user choices are preserved.
+New state slots use the stable game ID and configured core. Keep database IDs
+stable. Local file slots use filename, size, and core, independent of a file's
+modification date; this is not a full ROM content fingerprint. Avoid replacing
+a local ROM with a different file of the same name and size.
+
+The default backend core and actual EmulatorJS version are also recorded with
+each state. States from a different backend core or runtime version cannot be
+loaded through the panel. Matching labels cannot guarantee compatibility with
+every nightly core rebuild. Raw states require the same game and core. State
+payloads are limited to 256 MiB, and screenshots are omitted to avoid extra
+capture allocations. Cores without state support retain game save controls.
+
+Slot metadata and payloads are committed together. Quota or transaction failures
+do not replace an earlier slot, and revision checks prevent a stale tab's
+confirmation from overwriting or deleting a newer state. Native game save
+timestamps are small localStorage records; the save files remain in EmulatorJS's
+existing IndexedDB filesystem. State timestamps belong to the slot transaction.
+
+Validation: `node --test tests/player-stability.test.mjs`. The save tests use a
+deterministic transaction mock, not Safari or real game ROMs. Safari playback
+and per-core state compatibility still need device testing.
 - `docs/CORE_REFERENCE.md` - core/system reference
 - `coi-sw.js` - kept at the project root intentionally so its Service Worker scope can cover the whole app
 

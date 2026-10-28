@@ -402,6 +402,31 @@ button {
   color: #fff;
 }
 
+.player-header-actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+.saves-btn {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--accent-2);
+  background: transparent;
+  color: var(--accent-2);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.saves-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.saves-btn:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
 .emulator-wrap {
   width: 100%;
   min-height: min(74vh, 760px);

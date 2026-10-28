@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import test from 'node:test';
+import { MemoryIndexedDB } from './support/memory-indexeddb.mjs';
 
 const appSource = await readFile(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const playerSource = await readFile(new URL('../assets/js/player.js', import.meta.url), 'utf8');
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
+const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
+const savesSource = await readFile(new URL('../assets/js/saves.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const games = [{ id: 1, title: 'Test Game', core: 'nes', rom: 'Test Game.nes' }];
 
@@ -41,13 +44,15 @@ class Element {
   append(...items) { this.children.push(...items); }
   prepend(child) { this.children.unshift(child); }
   replaceChildren(...items) { this.children = items; }
-  contains(child) { return this.children.includes(child); }
+  contains(child) { return this.children.some(item => item === child || item.contains?.(child)); }
   get childNodes() { return this.children; }
   setAttribute(key, value) { this.attributes.set(key, value); }
   getAttribute(key) { return this.attributes.get(key) ?? null; }
   querySelectorAll() { return []; }
-  focus() {}
-  blur() {}
+  focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; }
+  blur() { if (this.ownerDocument) this.ownerDocument.activeElement = this.ownerDocument.body; }
+  click() { this.dispatch('click'); }
+  getClientRects() { return [{}]; }
   remove() {}
 }
 
@@ -66,17 +71,28 @@ async function environment(source, options = {}) {
   const elements = new Map();
   const document = new Element();
   document.body = new Element();
+  document.activeElement = document.body;
   document.getElementById = id => {
-    if (!elements.has(id)) elements.set(id, new Element());
+    if (!elements.has(id)) {
+      const element = new Element();
+      element.ownerDocument = document;
+      elements.set(id, element);
+    }
     return elements.get(id);
   };
-  document.createElement = () => new Element();
+  document.createElement = tag => {
+    const element = new Element();
+    element.ownerDocument = document;
+    element.tagName = tag.toUpperCase();
+    return element;
+  };
   document.createDocumentFragment = () => new Element();
   document.querySelector = () => options.coreError || null;
   const window = new Element();
   window.localStorage = storage(options.localStorage);
   window.sessionStorage = options.sessionStorage || storage();
   window.crossOriginIsolated = options.isolated !== false;
+  window.indexedDB = options.indexedDB;
   window.SharedArrayBuffer = SharedArrayBuffer;
   window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'] };
   window.location = { origin: 'https://retro.example', search: options.search || '?id=1' };
@@ -91,7 +107,7 @@ async function environment(source, options = {}) {
     return id;
   };
   const context = vm.createContext({
-    window, document, URL, URLSearchParams, Blob, File, console,
+    window, document, URL, URLSearchParams, Blob, File, TextEncoder, TextDecoder, console,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id),
@@ -100,6 +116,10 @@ async function environment(source, options = {}) {
     MutationObserver: class { constructor(callback) { observers.push(callback); } observe() {} disconnect() { this.disconnected = true; } }
   });
   vm.runInContext(i18nSource, context);
+  if (options.loadSaves) {
+    vm.runInContext(saveStorageSource, context);
+    vm.runInContext(savesSource, context);
+  }
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
   return { context, window, document, elements, posts, observers, timers };
@@ -256,11 +276,11 @@ test('both locale dictionaries cover every interface key used by scripts and mar
   const env = await environment(appSource);
   const playerHtml = await readFile(new URL('../pages/player.html', import.meta.url), 'utf8');
   const changelogHtml = await readFile(new URL('../pages/changelog.html', import.meta.url), 'utf8');
-  const source = appSource + playerSource + html + playerHtml + changelogHtml;
+  const source = appSource + playerSource + savesSource + html + playerHtml + changelogHtml;
   const keys = new Set([
-    ...[...source.matchAll(/(?:\bt|setNotice|reportPlayerError|playerError|showMessage)\("([a-zA-Z]+)"/g)].map(match => match[1]),
+    ...[...source.matchAll(/(?:\bt|setNotice|reportPlayerError|playerError|showMessage|setStatus|ask)\("([a-zA-Z]+)"/g)].map(match => match[1]),
     ...[...source.matchAll(/data-i18n(?:-[a-z-]+)?="([a-zA-Z]+)"/g)].map(match => match[1]),
-    'ambiguousExtension', 'unknownExtension', 'runtimeError'
+    'ambiguousExtension', 'unknownExtension', 'runtimeError', 'saveHere', 'loadHere', 'downloadBackup', 'importBackup', 'deleteSave'
   ]);
   for (const locale of ['en', 'ja']) {
     env.window.RetroI18n.setLanguage(locale);
@@ -463,4 +483,220 @@ test('the launcher releases the local ROM File only after the core starts', asyn
   env.window.dispatch('message', { origin: env.window.location.origin, source: frame.contentWindow, data: { type: 'retro-vault-player-start' } });
   assert.equal(vm.runInContext('state.localLaunch.file', env.context), null);
   assert.equal(vm.runInContext('state.localLaunch.game.core', env.context), 'nes');
+});
+
+async function waitFor(predicate) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (predicate()) return;
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.ok(predicate(), 'The expected asynchronous operation did not complete');
+}
+
+async function saveEnvironment(options = {}) {
+  const indexedDB = options.indexedDB || new MemoryIndexedDB();
+  const env = await environment(playerSource, { ...options, indexedDB, loadSaves: true });
+  const handlers = new Map();
+  const calls = { states: 0, normal: 0, loaded: [], pauses: 0, plays: 0 };
+  const emulator = {
+    started: true, paused: !!options.paused, ejs_version: '4.2.3',
+    getCore: () => 'fceumm',
+    getBaseFileName: () => 'Test Game',
+    elements: { parent: env.document.createElement('div') },
+    pause() { this.paused = true; calls.pauses += 1; },
+    play() { this.paused = false; calls.plays += 1; },
+    on(name, callback) { handlers.set(name, callback); },
+    gameManager: {
+      supportsStates: () => options.supportsStates !== false,
+      getState() { calls.states += 1; return new Uint8Array([1, 2, calls.states]); },
+      loadState(data) { calls.loaded.push([...data]); },
+      getSaveFile: () => options.noSystemSave ? null : new Uint8Array([8, 9]),
+      saveSaveFiles() { calls.normal += 1; handlers.get('saveSaveFiles')?.(new Uint8Array([8, 9])); },
+      FS: { syncfs: options.syncfs || ((populate, callback) => callback(null)) }
+    }
+  };
+  env.window.EJS_emulator = emulator;
+  env.window.EJS_onGameStart();
+  const manager = vm.runInContext('saveManager', env.context);
+  await manager.refresh();
+  return { ...env, indexedDB, manager, emulator, handlers, calls };
+}
+
+test('save defaults migrate once, preserve unrelated settings, and respect later preferences', async () => {
+  const key = 'ejs-1-nes-Test Game-settings';
+  const saved = { settings: { 'save-state-location': 'download', 'save-save-interval': '300', volume: 0.6 }, cheats: ['keep'] };
+  const first = await environment(playerSource, { localStorage: { [key]: JSON.stringify(saved) } });
+  assert.equal(first.window.EJS_defaultOptions['save-state-location'], 'browser');
+  assert.equal(first.window.EJS_defaultOptions['save-save-interval'], '30');
+  const migrated = JSON.parse(first.window.localStorage.getItem(key));
+  assert.deepEqual(migrated, { settings: { volume: 0.6 }, cheats: ['keep'] });
+  const migrationKey = 'retro-vault-save-defaults:' + JSON.stringify([1, 'nes', 'Test Game']);
+  const later = await environment(playerSource, { localStorage: { [key]: JSON.stringify(saved), [migrationKey]: '1' } });
+  assert.equal(JSON.parse(later.window.localStorage.getItem(key)).settings['save-save-interval'], '300');
+});
+
+test('state slots persist across player reloads and listing does not read state payloads', async () => {
+  const first = await saveEnvironment();
+  await first.manager.open();
+  await first.manager.run(() => first.manager.saveState(1));
+  assert.equal(first.manager.slots.length, 1);
+  assert.ok(Date.parse(first.manager.slots[0].savedAt));
+  const reads = first.indexedDB.reads.length;
+  await first.manager.refresh();
+  assert.equal(first.indexedDB.reads.slice(reads).some(item => item.store === 'states'), false);
+  const next = await saveEnvironment({ indexedDB: first.indexedDB });
+  assert.equal(next.manager.slots.length, 1);
+  await next.manager.open();
+  const loading = next.manager.run(() => next.manager.loadState(1));
+  await waitFor(() => next.manager.confirmation);
+  assert.equal(next.calls.loaded.length, 0);
+  next.manager.answer(true);
+  await loading;
+  assert.deepEqual(next.calls.loaded, [[1, 2, 1]]);
+  assert.equal(next.emulator.paused, true);
+  next.manager.close();
+  assert.equal(next.emulator.paused, false);
+});
+
+test('slot identity separates games and systems but survives local file timestamp changes', async () => {
+  const env = await saveEnvironment();
+  const api = env.window.RetroSaveStorage;
+  assert.notEqual(api.identity({ id: 1, core: 'nes' }), api.identity({ id: 2, core: 'nes' }));
+  assert.notEqual(api.identity({ id: 1, core: 'nes' }), api.identity({ id: 1, core: 'snes' }));
+  assert.equal(api.identity({ id: 1000000001, core: 'gba', localFilename: 'game.gba', localSize: 100 }), api.identity({ id: 1000000002, core: 'gba', localFilename: 'game.gba', localSize: 100 }));
+  await env.manager.run(() => env.manager.saveState(1));
+  const other = await saveEnvironment({ indexedDB: env.indexedDB, games: [{ ...games[0], id: 2 }], search: '?id=2' });
+  assert.equal(other.manager.slots.length, 0);
+});
+
+test('cancelled overwrites do not allocate another state and quota failures preserve the previous slot', async () => {
+  const env = await saveEnvironment();
+  await env.manager.run(() => env.manager.saveState(1));
+  const before = env.manager.slots[0].savedAt;
+  const overwrite = env.manager.run(() => env.manager.saveState(1));
+  await waitFor(() => env.manager.confirmation);
+  assert.equal(env.calls.states, 1);
+  env.manager.answer(false);
+  await overwrite;
+  assert.equal(env.calls.states, 1);
+  assert.equal(env.manager.status.key, 'saveActionCancelled');
+  env.indexedDB.failWrite = true;
+  const failed = env.manager.run(() => env.manager.saveState(1));
+  await waitFor(() => env.manager.confirmation);
+  env.manager.answer(true);
+  await failed;
+  assert.equal(env.manager.status.key, 'saveStorageFull');
+  const record = await env.manager.store.get(env.manager.gameKey, 1);
+  assert.deepEqual([...new Uint8Array(await record.data.arrayBuffer())], [1, 2, 1]);
+  assert.equal(record.metadata.savedAt, before);
+});
+
+test('another tab cannot silently replace or delete a slot after confirmation was shown', async () => {
+  const env = await saveEnvironment();
+  await env.manager.run(() => env.manager.saveState(1));
+  const overwrite = env.manager.run(() => env.manager.saveState(1));
+  await waitFor(() => env.manager.confirmation);
+  await env.manager.store.put(env.manager.metadata(1), new Uint8Array([7]));
+  env.manager.answer(true);
+  await overwrite;
+  assert.equal(env.manager.status.key, 'saveConflict');
+  const deleting = env.manager.run(() => env.manager.deleteSlot(1));
+  await waitFor(() => env.manager.confirmation);
+  await env.manager.store.put(env.manager.metadata(1), new Uint8Array([9]));
+  env.manager.answer(true);
+  await deleting;
+  assert.equal(env.manager.status.key, 'saveConflict');
+  const record = await env.manager.store.get(env.manager.gameKey, 1);
+  assert.deepEqual([...new Uint8Array(await record.data.arrayBuffer())], [9]);
+});
+
+test('backups round trip without base64 and reject other games, versions, and invalid files', async () => {
+  const env = await saveEnvironment();
+  const api = env.window.RetroSaveStorage;
+  const backup = api.makeBackup(env.manager.metadata(1), new Uint8Array([20, 21, 22]));
+  const file = new File([backup], 'save.rvstate');
+  const parsed = await api.readBackup(file);
+  assert.deepEqual([...new Uint8Array(await parsed.data.arrayBuffer())], [20, 21, 22]);
+  await env.manager.run(() => env.manager.importFile(2, file));
+  assert.equal(env.manager.slots[0].slot, 2);
+  const wrongGame = api.makeBackup({ ...env.manager.metadata(1), gameKey: 'another-game' }, new Uint8Array([1]));
+  await assert.rejects(env.manager.importFile(3, new File([wrongGame], 'wrong.rvstate')), { name: 'SaveStateMismatch' });
+  env.emulator.ejs_version = '4.3.0';
+  await assert.rejects(env.manager.loadState(2), { name: 'SaveStateMismatch' });
+  env.emulator.ejs_version = '4.2.3';
+  await assert.rejects(api.readBackup(new File(['bad'], 'bad.rvstate')), { name: 'InvalidStateBackup' });
+  await assert.rejects(api.readBackup(new File([], 'empty.state')), { name: 'InvalidStateSize' });
+  const corrupt = new Blob(['RVSTATE1\n', new Uint8Array([255, 255, 255, 255]), 'invalid']);
+  await assert.rejects(api.readBackup(new File([corrupt], 'bad.rvstate')), { name: 'InvalidStateBackup' });
+});
+
+test('raw imports require confirmation and unsupported cores do not attempt state capture', async () => {
+  const env = await saveEnvironment();
+  const raw = env.manager.run(() => env.manager.importFile(1, new File([new Uint8Array([4, 5])], 'old.state')));
+  await waitFor(() => env.manager.confirmation);
+  assert.equal(env.manager.confirmation.key, 'confirmRawState');
+  env.manager.answer(true);
+  await raw;
+  assert.equal(env.manager.slots.length, 1);
+  const unsupported = await saveEnvironment({ supportsStates: false });
+  await unsupported.manager.run(() => unsupported.manager.saveState(1));
+  assert.equal(unsupported.calls.states, 0);
+  assert.equal(unsupported.manager.status.key, 'saveStatesUnsupported');
+  assert.equal(unsupported.elements.get('state-support').hidden, false);
+});
+
+test('normal save timestamps follow successful filesystem writes, and never capture states automatically', async () => {
+  const callbacks = [];
+  const env = await saveEnvironment({ syncfs(populate, callback) { callbacks.push(callback); } });
+  env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  assert.equal(env.manager.systemSavedAt, undefined);
+  assert.equal(env.calls.states, 0);
+  callbacks.shift()(null);
+  await waitFor(() => env.manager.systemFlush === null);
+  const savedAt = env.manager.systemSavedAt;
+  assert.ok(Date.parse(savedAt));
+  assert.equal(env.window.localStorage.getItem('retro-vault-system-save:' + env.manager.gameKey), savedAt);
+  env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  callbacks.shift()(new Error('Write failed'));
+  await waitFor(() => env.manager.systemFlush === null);
+  assert.equal(env.manager.systemSavedAt, savedAt);
+  assert.equal(env.manager.status.key, 'systemSaveFailed');
+  assert.equal(env.calls.states, 0);
+  const empty = await saveEnvironment({ noSystemSave: true });
+  await empty.manager.run(async () => {
+    await empty.manager.flushSystem();
+    assert.equal(empty.manager.hasSystemData, false);
+  });
+  assert.equal(empty.manager.systemSavedAt, undefined);
+});
+
+test('shutdown serializes an in-flight flush with the final write before acknowledging', async () => {
+  const callbacks = [];
+  const env = await saveEnvironment({ syncfs(populate, callback) { callbacks.push(callback); } });
+  env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  const cleanup = vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(callbacks.length, 1);
+  callbacks.shift()(null);
+  assert.equal(callbacks.length, 1);
+  callbacks.shift()(null);
+  await cleanup;
+  assert.equal(env.window.EJS_emulator, null);
+  assert.equal(env.manager.closing, true);
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).saveFlush, 'saved');
+  assert.equal(env.calls.states, 0);
+});
+
+test('the save panel preserves a manual pause, and storage errors still allow a current-state backup', async () => {
+  const env = await saveEnvironment({ paused: true });
+  await env.manager.open();
+  env.manager.close();
+  assert.equal(env.emulator.paused, true);
+  assert.equal(env.calls.plays, 0);
+  env.manager.store = new env.window.RetroSaveStorage.SaveStorage(null);
+  await env.manager.open();
+  assert.equal(env.manager.status.key, 'saveStorageUnavailable');
+  env.elements.get('save-current-backup').dispatch('click');
+  await waitFor(() => !env.manager.busy);
+  assert.equal(env.manager.status.key, 'backupReady');
+  assert.equal(env.calls.states, 1);
 });

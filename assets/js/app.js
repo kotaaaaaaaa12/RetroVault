@@ -267,6 +267,7 @@ const elements = {
   modalTitle: document.getElementById("modal-title"),
   modalMeta: document.getElementById("modal-meta"),
   close: document.getElementById("close-btn"),
+  saves: document.getElementById("saves-btn"),
   frame: document.getElementById("emulator-frame"),
   localRomButton: document.getElementById("local-rom-btn"),
   localRomInput: document.getElementById("local-rom-input"),
@@ -378,6 +379,8 @@ function openLocalGame(file, core) {
   const game = {
     id: localGameId(file),
     title: localGameTitle(file.name),
+    localFilename: file.name,
+    localSize: file.size,
     core,
     ejsVersion: core === "3ds" ? "nightly" : undefined
   };
@@ -694,6 +697,7 @@ function openGame(game) {
 function closeModal() {
   if (!elements.modal.classList.contains("open") || state.closing) return;
   state.closing = true;
+  elements.saves.disabled = true;
   state.closeToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   elements.close.disabled = true;
   elements.close.textContent = t("closing");
@@ -703,6 +707,7 @@ function closeModal() {
 }
 
 function finishClosingPlayer() {
+  elements.saves.disabled = true;
   if (state.closeTimer !== null) clearTimeout(state.closeTimer);
   state.closeTimer = null;
   state.closing = false;
@@ -811,6 +816,7 @@ window.addEventListener("message", event => {
   }
 
   if (event.data?.type === "retro-vault-player-start") {
+    elements.saves.disabled = event.data.savesAvailable !== true;
     // The iframe has loaded the ROM into the core; release the launcher's File reference.
     if (state.localLaunch) state.localLaunch.file = null;
     return;
@@ -826,6 +832,11 @@ window.addEventListener("message", event => {
 });
 
 elements.language.value = I18n.mode;
+elements.saves.addEventListener("click", () => {
+  if (state.closing || state.openGameId === null) return;
+  elements.saves.blur();
+  elements.frame.contentWindow.postMessage({ type: "retro-vault-open-saves" }, window.location.origin);
+});
 elements.language.addEventListener("change", event => {
   I18n.setLanguage(event.target.value);
   event.target.blur();

@@ -33,6 +33,7 @@ let diagnostics = null;
 let cleanupPromise = null;
 let lastReportedError = "";
 let pausedForVisibility = false;
+let saveManager = null;
 
 function persistDiagnostics() {
   if (!diagnostics) return;
@@ -61,7 +62,7 @@ function sampleDiagnostics(phase) {
 function beginDiagnostics(game, threads) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-4",
+    appVersion: "20261028-5",
     emulatorVersion: game.ejsVersion || DEFAULT_EJS_VERSION,
     game: { id: game.id, title: game.title, core: game.core },
     userAgent: String(window.navigator?.userAgent || "").slice(0, 500),
@@ -107,22 +108,29 @@ function reportException(error, fallback) {
 }
 
 function clearSavedThreadOverride(game) {
-  // Keep saves, controls, cheats, and all other emulator settings intact.
+  // Migrate save defaults once; keep save files, controls, and cheats intact.
   try {
     const storage = window.localStorage;
+    const migrationKey = "retro-vault-save-defaults:" + JSON.stringify([game.id, game.core, game.title]);
+    const migrateSaves = storage.getItem(migrationKey) !== "1";
     const prefix = `ejs-${game.id}-`;
     const suffix = `-${game.title}-settings`;
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index);
       if (!key || !key.startsWith(prefix) || !key.endsWith(suffix)) continue;
       const saved = JSON.parse(storage.getItem(key));
-      if (saved?.settings && Object.prototype.hasOwnProperty.call(saved.settings, "ejs_threads")) {
+      if (saved?.settings) {
         delete saved.settings.ejs_threads;
+        if (migrateSaves) {
+          delete saved.settings["save-state-location"];
+          delete saved.settings["save-save-interval"];
+        }
         storage.setItem(key, JSON.stringify(saved));
       }
     }
+    storage.setItem(migrationKey, "1");
   } catch (error) {
-    console.debug("Saved thread preference could not be reset:", error);
+    console.debug("Saved preference migration was unavailable:", error);
   }
 }
 
@@ -261,6 +269,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   }
 
   const dataPath = resolveDataPath(game);
+  if (typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game);
 
   // Keep the player configuration intentionally close to the official EmulatorJS demo.
   window.EJS_player = "#game";
@@ -277,7 +286,11 @@ function startEmulator(game, gameUrl, requestedThreads) {
     window.EJS_paths = { "ja-JA": localeObjectUrl };
   }
   window.EJS_threads = threads;
-  window.EJS_defaultOptions = { ejs_threads: threads ? "enabled" : "disabled" };
+  window.EJS_defaultOptions = {
+    ejs_threads: threads ? "enabled" : "disabled",
+    "save-state-location": "browser",
+    "save-save-interval": "30"
+  };
   // Production mode enables the core cache and avoids verbose runtime logging.
   window.EJS_DEBUG_XX = false;
 
@@ -307,12 +320,13 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (playerClosing) return;
     hideMessage();
     sampleDiagnostics("running");
+    saveManager?.start();
     if (localObjectUrl) {
       URL.revokeObjectURL(localObjectUrl);
       localObjectUrl = "";
     }
     updateVisibility();
-    notifyParent("retro-vault-player-start");
+    notifyParent("retro-vault-player-start", { savesAvailable: !!saveManager });
   };
 
   window.EJS_onExit = () => {
@@ -418,6 +432,7 @@ async function boot() {
 function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
+  saveManager?.stop();
   pausedForVisibility = false;
   if (diagnosticTimer !== null) clearInterval(diagnosticTimer);
   diagnosticTimer = null;
@@ -439,7 +454,7 @@ function shutdownPlayer(reason = "close") {
   try { if (shouldSave) emulator.gameManager?.saveSaveFiles?.(); } catch (error) {
     if (diagnostics) diagnostics.saveError = String(error?.message || error).slice(0, 500);
   }
-  cleanupPromise = new Promise(resolve => {
+  const flushSave = shouldSave && saveManager?.started ? saveManager.flushExistingSystem() : new Promise(resolve => {
     const fs = emulator?.gameManager?.FS || module?.FS;
     if (!shouldSave || typeof fs?.syncfs !== "function") {
       resolve("not-needed");
@@ -455,7 +470,9 @@ function shutdownPlayer(reason = "close") {
     const timeout = setTimeout(() => done("timed-out"), 1200);
     try { fs.syncfs(false, error => done(error ? "failed" : "saved")); }
     catch { done("failed"); }
-  }).then(saveFlush => {
+  });
+  cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation]).then(([flushResult]) => {
+    const saveFlush = flushResult.status === "fulfilled" ? flushResult.value : "failed";
     const contexts = new Set();
     if (module?.AL?.currentCtx?.audioCtx) contexts.add(module.AL.currentCtx.audioCtx);
     for (const context of Object.values(module?.AL?.contexts || {})) {
@@ -574,6 +591,10 @@ I18n.onChange(() => {
 
 window.addEventListener("message", event => {
   if (event.origin !== window.location.origin || event.source !== window.parent) return;
+  if (event.data?.type === "retro-vault-open-saves") {
+    if (!playerClosing) saveManager?.open();
+    return;
+  }
   if (event.data?.type === "retro-vault-player-stop" && typeof event.data.token === "string") {
     const token = event.data.token;
     shutdownPlayer().then(() => notifyParent("retro-vault-player-stopped", { token }));
