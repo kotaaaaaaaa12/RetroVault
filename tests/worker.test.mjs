@@ -39,10 +39,10 @@ test('public login is available but the catalog, admin, legacy test, and file AP
   for (const path of ['/api/games', '/data/games.json', '/api/admin/games', '/api/admin/files', '/data/roms/private.nes']) assert.equal((await call(env, path)).status, 401, path);
 });
 
-test('login fails closed without a password hash and enforces origin, password, and logout checks', async () => {
-  const env = environment(); delete env.ADMIN_PASSWORD_HASH;
+test('login fails closed without a password secret and enforces origin, password, and logout checks', async () => {
+  const env = environment(); delete env.ADMIN_PASSWORD;
   assert.equal((await call(env, '/api/auth/login', 'POST', { password: testPassword })).status, 503);
-  env.ADMIN_PASSWORD_HASH = passwordHash();
+  env.ADMIN_PASSWORD = testPassword;
   assert.equal((await call(env, '/api/auth/login', 'POST', { password: testPassword }, {}, { Origin: 'https://another.example' })).status, 403);
   assert.equal((await call(env, '/api/auth/login', 'POST', { password: 'wrong' })).status, 401);
   const auth = await loggedIn(env);
@@ -54,10 +54,37 @@ test('login fails closed without a password hash and enforces origin, password, 
 
 test('password rotation invalidates existing sessions and repeated failed logins are limited', async () => {
   const env = environment(); const auth = await loggedIn(env);
-  env.ADMIN_PASSWORD_HASH = passwordHash('A different test password 2026.');
+  env.ADMIN_PASSWORD = 'A different test password 2026.';
   assert.equal((await call(env, '/api/auth/session', 'GET', undefined, auth)).status, 401);
   for (let i = 0; i < 8; i++) assert.equal((await call(env, '/api/auth/login', 'POST', { password: 'wrong' })).status, 401);
   assert.equal((await call(env, '/api/auth/login', 'POST', { password: 'wrong' })).status, 429);
+});
+
+test('direct secrets support chosen Unicode passwords exactly and take precedence over legacy hashes', async () => {
+  const env = environment();
+  env.ADMIN_PASSWORD_HASH = passwordHash();
+  env.ADMIN_PASSWORD = ' 自分で決めたPassword$2026! ';
+  assert.equal((await call(env, '/api/auth/login', 'POST', { password: testPassword })).status, 401);
+  assert.equal((await call(env, '/api/auth/login', 'POST', { password: env.ADMIN_PASSWORD.trim() })).status, 401);
+  const response = await call(env, '/api/auth/login', 'POST', { password: env.ADMIN_PASSWORD });
+  assert.equal(response.status, 200);
+  assert.ok(!(await response.clone().text()).includes(env.ADMIN_PASSWORD));
+  const auth = { cookie: response.headers.get('Set-Cookie').split(';')[0] };
+  assert.equal((await call(env, '/api/auth/session', 'GET', undefined, auth)).status, 200);
+  env.ADMIN_PASSWORD = '';
+  assert.equal((await call(env, '/api/auth/session', 'GET', undefined, auth)).status, 401);
+  assert.equal((await call(env, '/api/auth/login', 'POST', { password: testPassword })).status, 503);
+});
+
+test('existing hash-only installations remain usable until a direct password is configured', async () => {
+  const env = environment(); delete env.ADMIN_PASSWORD;
+  env.ADMIN_PASSWORD_HASH = passwordHash();
+  const auth = await loggedIn(env);
+  assert.equal((await call(env, '/api/auth/session', 'GET', undefined, auth)).status, 200);
+  env.ADMIN_PASSWORD = 'The newly chosen password.';
+  assert.equal((await call(env, '/api/auth/session', 'GET', undefined, auth)).status, 401);
+  assert.equal((await call(env, '/api/auth/login', 'POST', { password: testPassword })).status, 401);
+  assert.equal((await call(env, '/api/auth/login', 'POST', { password: env.ADMIN_PASSWORD })).status, 200);
 });
 
 test('uploads are completed before publishing and reads stream with correct range and security headers', async () => {

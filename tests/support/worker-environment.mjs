@@ -51,5 +51,5 @@ export function passwordHash(password = testPassword) {
   return 'pbkdf2-sha256$100000$' + salt + '$' + pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
 }
 export function environment() {
-  return { DB: new SQLiteD1(), FILES: new MemoryR2(), ADMIN_PASSWORD_HASH: passwordHash(), ASSETS: { async fetch(request) { const path = new URL(request.url).pathname; return new Response('<html>' + path + '</html>', { headers: { 'Content-Type': 'text/html' } }); } } };
+  return { DB: new SQLiteD1(), FILES: new MemoryR2(), ADMIN_PASSWORD: testPassword, ASSETS: { async fetch(request) { const path = new URL(request.url).pathname; return new Response('<html>' + path + '</html>', { headers: { 'Content-Type': 'text/html' } }); } } };
 }

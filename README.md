@@ -31,27 +31,36 @@ bucket custom domain. This project streams authenticated reads through the Worke
 
 ## Set the administrator password once
 
-The deployment contains **no default password**. It fails closed until the secret
-is configured. Do not put a password or its hash in `wrangler.jsonc`, GitHub, or a
-public JavaScript file.
+The deployment contains **no default password**. In Cloudflare, open your Worker,
+**Settings → Variables and Secrets**, add a value with type **Secret**, and use:
 
-After installing dependencies on a trusted local computer, run:
+| Setting | Value |
+| --- | --- |
+| Name | `ADMIN_PASSWORD` |
+| Value | Your chosen login password, entered directly |
 
-```sh
-npm ci
-npm run password --silent
-```
+Save and deploy the settings change, then enter the exact same password on the
+login page. No terminal, password generator, or manually generated hash is needed.
+Use a unique password, preferably at least 12 characters. Passwords may contain
+Unicode and punctuation; leading and trailing spaces are significant. The maximum
+length is 1024 characters. An empty secret disables login.
 
-Enter a unique password of at least 12 characters. The terminal does not echo it.
-The script prints a `pbkdf2-sha256$...` hash. In Cloudflare, open your Worker,
-**Settings → Variables and Secrets**, add an encrypted secret named
-**ADMIN_PASSWORD_HASH**, paste the complete hash, and deploy that settings change.
-Alternatively, use `npx wrangler secret put ADMIN_PASSWORD_HASH` and paste the hash.
+Alternatively, an authenticated local terminal can use
+`npx wrangler secret put ADMIN_PASSWORD` and enter the chosen password.
+Do not put the password in `wrangler.jsonc`, GitHub, or public JavaScript.
+Only the Worker reads the secret. The browser submits the entered password over
+HTTPS; authentication responses never return the configured password.
 
 Both the game library and `/admin/` use this login. The login session lasts up to
 12 hours. Sessions use Secure, HttpOnly, SameSite=Strict cookies; write APIs require
 a session CSRF token and same-origin requests. Repeated login failures are limited.
-Changing the password hash invalidates existing sessions.
+Changing the password invalidates existing sessions.
+
+An existing `ADMIN_PASSWORD_HASH` is supported only as a compatibility fallback
+when `ADMIN_PASSWORD` is absent. A configured `ADMIN_PASSWORD` always takes
+precedence, including when it is empty. Remove the old hash secret after switching.
+The old hashing script remains available for compatibility but is not needed for
+normal setup.
 
 ## Local development and verification
 
@@ -62,8 +71,8 @@ npx wrangler deploy --dry-run
 npx wrangler dev
 ```
 
-For local development only, put the generated hash in a non-committed `.dev.vars`
-file as `ADMIN_PASSWORD_HASH="pbkdf2-sha256$..."`. Local D1 and R2 data persist under
+For local development only, put your chosen password in a non-committed `.dev.vars`
+file as `ADMIN_PASSWORD="your-local-password"`. Local D1 and R2 data persist under
 Wrangler's development storage. Tests use a synthetic password and synthetic bytes;
 they do not supply a production administrator password or game ROM.
 
