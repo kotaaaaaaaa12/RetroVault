@@ -12,7 +12,6 @@ let busy = false;
 let dirty = false;
 let jsonDirty = false;
 let uploadController = null;
-let autoSystem = true;
 let statusMessage = null;
 let uploadResults = [];
 let uploadProgress = null;
@@ -70,6 +69,22 @@ function coreOptions(value = model.coreOverride || '') {
   }
   element('game-core').value = value;
 }
+function restoreRomSystem(previous) {
+  model.system = previous.system; model.core = previous.core;
+  if (previous.coreOverride) model.coreOverride = previous.coreOverride; else delete model.coreOverride;
+  element('game-system').value = model.system;
+  coreOptions();
+}
+function selectRomSystem(filename) {
+  const system = detectSystem(filename);
+  if (!system) return;
+  if ((model.system || systemFor(model.core)?.id) !== system) {
+    model.system = model.core = system;
+    delete model.coreOverride;
+  }
+  element('game-system').value = system;
+  coreOptions();
+}
 function systemOptions() {
   const value = element('game-system').value || model.system || 'nes';
   element('game-system').replaceChildren();
@@ -109,7 +124,6 @@ function fill() {
 async function selectGame(game) {
   if (busy || (dirty && !await ask('adminDiscardChanges'))) return;
   model = game ? structuredClone(game) : { title: '', system: 'nes', core: 'nes', status: 'draft' };
-  autoSystem = !game;
   dirty = false; fill();
 }
 function makeButton(key, action) {
@@ -227,6 +241,8 @@ async function upload(field, kind, originals) {
   let selected = false;
   let completed = 0;
   let failed = 0;
+  const previousSystem = { system: model.system, core: model.core, coreOverride: model.coreOverride };
+  if (kind === 'rom') { selectRomSystem(originals[0].name); syncJson(); }
   try {
     for (let index = 0; index < originals.length; index++) {
       if (signal.aborted) break;
@@ -244,10 +260,9 @@ async function upload(field, kind, originals) {
         // A batch never replaces the current selection with every later file.
         if (!selected) {
           selected = true; model[field] = stored.key; dirty = true;
-          if (kind === 'rom' && !model.id) {
-            const system = detectSystem(original.name);
-            if (system && autoSystem) { model.system = model.core = system; delete model.coreOverride; element('game-system').value = system; coreOptions(); }
-            if (!model.title) { model.title = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
+          if (kind === 'rom') {
+            restoreRomSystem(previousSystem); selectRomSystem(original.name);
+            if (!model.id && !model.title) { model.title = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
           }
           syncJson(); preview();
         }
@@ -262,6 +277,7 @@ async function upload(field, kind, originals) {
       renderUploadResults();
     }
     for (const result of uploadResults) if (result.state === 'waiting') result.state = 'cancelled';
+    if (kind === 'rom' && !selected) restoreRomSystem(previousSystem);
     renderUploadResults();
     await refresh(); syncJson(); preview();
     if (signal.aborted) show('adminUploadBatchCancelled', { completed, total: originals.length });
@@ -285,15 +301,21 @@ for (const [field, kind, key] of fields) {
   input.addEventListener('change', () => { if (input.files?.length) upload(field, kind, Array.from(input.files)); });
   const select = document.createElement('select'); select.id = 'existing-' + field;
   select.setAttribute('aria-label', t('adminChooseExisting', { name: t(key) }));
-  select.addEventListener('change', () => { if (select.value) model[field] = select.value; else delete model[field]; dirty = true; element('current-' + field).textContent = files.find(file => file.key === model[field])?.name || model[field] || t('adminNoFile'); syncJson(); preview(); select.blur(); });
+  select.addEventListener('change', () => {
+    if (select.value) model[field] = select.value; else delete model[field];
+    const file = files.find(file => file.key === model[field]);
+    if (kind === 'rom' && file) selectRomSystem(file.name);
+    dirty = true; element('current-' + field).textContent = file?.name || model[field] || t('adminNoFile');
+    syncJson(); preview(); select.blur();
+  });
   const current = document.createElement('small'); current.id = 'current-' + field;
   const chooseKey = input.multiple ? 'adminChooseUploads' : 'adminChooseUpload';
   const choose = makeButton(chooseKey, () => input.click()); choose.dataset.i18n = chooseKey;
   label.append(title, choose, input, select, current); group.appendChild(label); element('file-fields').appendChild(group);
 }
 element('game-title').addEventListener('input', event => { model.title = event.target.value; dirty = true; syncJson(); });
-element('game-system').addEventListener('change', event => { model.system = model.core = event.target.value; delete model.coreOverride; autoSystem = false; dirty = true; coreOptions(); syncJson(); event.target.blur(); });
-element('game-core').addEventListener('change', event => { if (event.target.value) model.coreOverride = event.target.value; else delete model.coreOverride; autoSystem = false; dirty = true; syncJson(); event.target.blur(); });
+element('game-system').addEventListener('change', event => { model.system = model.core = event.target.value; delete model.coreOverride; dirty = true; coreOptions(); syncJson(); event.target.blur(); });
+element('game-core').addEventListener('change', event => { if (event.target.value) model.coreOverride = event.target.value; else delete model.coreOverride; dirty = true; syncJson(); event.target.blur(); });
 element('game-status').addEventListener('change', event => { model.status = event.target.value; dirty = true; syncJson(); event.target.blur(); });
 element('game-json').addEventListener('input', () => { jsonDirty = dirty = true; });
 element('apply-json').addEventListener('click', () => {
@@ -301,7 +323,6 @@ element('apply-json').addEventListener('click', () => {
     const config = JSON.parse(element('game-json').value);
     if (!config || typeof config !== 'object' || Array.isArray(config) || (model.id && config.id !== model.id) || typeof config.title !== 'string') throw new Error('invalidJson');
     model = { ...config, id: model.id, revision: model.revision, saveName: model.saveName || config.saveName };
-    autoSystem = false;
     dirty = true; fill(); show('adminJsonApplied');
   } catch { problem(new Error('invalidJson')); }
 });

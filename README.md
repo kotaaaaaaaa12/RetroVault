@@ -111,8 +111,11 @@ Safari phone-number detection is disabled on HTML pages.
 
 1. Open `/admin/` and choose **Add game**.
 2. Choose a ROM to upload. ROM and thumbnail pickers support multiple selection.
-   Known extensions suggest a system; ambiguous extensions
-   leave system selection to you. An explicitly chosen system or core is retained.
+   A recognized extension automatically selects the system and its default core,
+   both for uploads and when selecting an already uploaded ROM. This also works
+   when editing an existing game. Choosing another ROM for the same system keeps
+   its custom core. You can change the detected system or core afterward.
+   Ambiguous extensions such as ZIP, BIN, and ISO keep the current manual choice.
 3. Enter the title and choose the system. The core defaults to that system's core,
    with supported alternate cores available in the dropdown.
 4. Upload or select a thumbnail. PNG, JPEG, and WebP uploads up to 10 MiB are
@@ -125,7 +128,10 @@ the current game; later uploads remain in the uploaded-file dropdowns for other
 games. Each catalog entry still uses one ROM and one thumbnail. Uploading multiple
 ROMs does not automatically create or publish game entries, and thumbnails are
 not matched to ROMs by filename. Choose the corresponding files and save each game.
-An existing game's ID, title, and system are retained during a batch.
+An existing game's ID and title are retained during a batch. Its system follows
+the first successfully uploaded ROM, and later files do not change that choice.
+The first picked ROM previews its detected system immediately; if no ROM upload
+completes, the previous system/core settings are restored.
 
 The queue displays each file's result and the current file number and progress.
 An individual failure does not discard completed files or stop later files.
@@ -191,6 +197,18 @@ threads OFF; required cores such as Azahar enable threads when supported. The
 Worker sends COOP/COEP headers for shared memory, including API/error responses.
 Closing pauses the game, bounds save flushing, closes tracked audio contexts,
 releases canvas/object URLs, then unloads the iframe. Errors keep the player open.
+
+The 4.3.0-pre mobile Safari startup audio check is replaced by a compatibility
+helper because the runtime can have no OpenAL current context. A trusted tap
+can resume an existing suspended audio context without consuming game input.
+No extra context or blocking audio popup is created. All hooks are removed on
+shutdown. Other versions retain their native startup check.
+
+Named operation failures and aggregate input counts help distinguish browser
+input delivery from calls to the emulator's input interface. Key values and
+button contents are not recorded. The earlier stackless permission denial and
+reported touch-input failure are not fully diagnosed by the original log;
+validate on the affected device and retain a fresh diagnostic after a failure.
 
 The footer's diagnostic download remains device-local. It measures WebAssembly
 memory and bounded runtime metadata, not total Safari/GPU memory. Download a log

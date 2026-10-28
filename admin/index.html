@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="format-detection" content="telephone=no">
   <title data-i18n="adminTitle">Manage library | Retro Vault</title>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20261028-18">
-  <script src="/assets/js/i18n.js?v=20261028-18" defer></script>
-  <script type="module" src="/assets/js/admin.js?v=20261028-18"></script>
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20261028-20">
+  <script src="/assets/js/i18n.js?v=20261028-20" defer></script>
+  <script type="module" src="/assets/js/admin.js?v=20261028-20"></script>
 </head>
 <body>
 <main>
@@ -43,6 +43,7 @@
           <label><span data-i18n="selectSystem">SELECT SYSTEM</span><select id="game-system"></select></label>
           <label><span data-i18n="adminCore">Emulator core</span><select id="game-core"></select></label>
         </div>
+        <p class="hint" data-i18n="adminRomSystemHelp">Selecting a ROM sets its system and default core from a recognized extension. You can change them afterward. Ambiguous formats such as ZIP, BIN, and ISO need manual selection.</p>
         <label><span data-i18n="adminState">Library status</span><select id="game-status"><option value="draft" data-i18n="adminDraft">Draft</option><option value="ready" data-i18n="adminReady">Visible in library</option></select></label>
         <p class="hint" data-i18n="adminDraftHelp">Imported entries start as drafts. Upload or select their files before making them visible.</p>
         <div id="file-fields"></div>

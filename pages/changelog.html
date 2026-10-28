@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-18">
-  <script src="/assets/js/i18n.js?v=20261028-18" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-18" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-20">
+  <script src="/assets/js/i18n.js?v=20261028-20" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-20" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -33,8 +33,24 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-20">
+      <div class="release-meta"><span>20261028-20</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-20" data-i18n="releaseTwentyTitle">Mobile startup audio compatibility and input diagnostics</h2>
+      <ul>
+        <li data-i18n="releaseTwentyAudio">Replaced the prerelease mobile Safari audio check that assumes an OpenAL context exists. Existing suspended audio can resume during a trusted tap without consuming the control input or opening an audio-wait popup.</li>
+        <li data-i18n="releaseTwentyDiagnostics">Diagnostics identify failed audio, gamepad, fullscreen, and pointer-lock operations and record input-event counts. Input contents are not recorded. Permission errors are retained; the specific cause of an earlier unnamed denial remains unconfirmed.</li>
+      </ul>
+    </article>
+    <article class="release" aria-labelledby="release-19">
+      <div class="release-meta"><span>20261028-19</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <h2 id="release-19" data-i18n="releaseNineteenTitle">Select the system automatically when choosing a ROM</h2>
+      <ul>
+        <li data-i18n="releaseNineteenSystem">ROM uploads and uploaded-file selections detect the system from known extensions, including when editing an existing game. Switching systems selects the default core; choosing another ROM for the same system preserves a custom core.</li>
+        <li data-i18n="releaseNineteenFallback">Ambiguous formats remain manually configurable. A failed or cancelled upload restores the previous system if no ROM completed.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-18">
-      <div class="release-meta"><span>20261028-18</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-18</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-18" data-i18n="releaseEighteenTitle">Multiple uploads and readable file sizes</h2>
       <ul>
         <li data-i18n="releaseEighteenUploads">ROM and thumbnail pickers accept multiple files. Uploads run sequentially with per-file results, progress, retries, and cancellation. Completed files remain available if another file fails.</li>

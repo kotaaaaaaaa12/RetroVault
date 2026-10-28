@@ -2,6 +2,38 @@
 
 Reviewed on 2026-10-28. This is a source review and a set of mitigations; it is not a device-level measurement of the reported Safari reload.
 
+## Mobile startup failure and input report
+
+A supplied 4.3.0-pre diagnostic recorded a TypeError reading
+`Module.AL.currentCtx.sources`, followed 13 ms later by a stackless
+`NotAllowedError`. Audio remained suspended. The core heap was 128 MiB with no
+recorded heap growth; that does not measure or rule out total process memory
+pressure. The reported failure concerned on-screen touch controls.
+
+The pinned frontend's mobile Safari `checkStarted()` reads `currentCtx.sources`
+without checking for null. Its OpenAL-only polling can also remain suspended
+without usable sources. The compatibility helper replaces this check only for
+mobile Safari detection and runtime version 4.3.0-pre. It does not change the
+core or invent an OpenAL context for an RWebAudio backend. Existing audio contexts
+are resumed only within a trusted gesture, without consuming that gesture or
+creating an audio-wait popup. A manual pause is respected.
+
+The original stackless permission failure cannot be attributed to a particular
+API from the supplied log. New named operation records cover AudioContext.resume,
+gamepad enumeration, fullscreen, pointer lock, and requested microphone access.
+Calls retain their return values and errors. The diagnostic records aggregate
+pointer, touch, virtual-control, keyboard, and simulateInput call counts, plus
+native popup state and an available player-one device ID. It records no key
+values or control text. Counters and failure lists are bounded; hooks restore
+on player shutdown. A simulateInput call count proves a call reached that method,
+not that the core accepted the input.
+
+The uploaded log did not identify why on-screen controls were unresponsive.
+Regression tests exercise the null-context failure and gesture/input forwarding;
+recovery on the reporting iPhone browser still requires a device test.
+
+Source: https://github.com/EmulatorJS/EmulatorJS/blob/v4.3.0-pre/data/src/emulator.js
+
 ## Confirmed in the previous overlay
 
 1. `EJS_DEBUG_XX` was always true. In EmulatorJS v4.2.3, the core cache read is guarded by `!this.debug`. Debug mode also uses separate source scripts and verbose runtime logs. Production mode restores that cache path; this establishes unnecessary work, not the cause of a Safari termination.

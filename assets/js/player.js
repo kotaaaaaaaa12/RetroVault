@@ -37,6 +37,7 @@ let saveManager = null;
 let restoreConsoleDiagnostics = null;
 let restoreAudioContextTracking = null;
 let legacyLanguageLoader = false;
+let runtimeSupport = null;
 const ownedAudioContexts = new Set();
 
 function installAudioContextTracking() {
@@ -49,7 +50,10 @@ function installAudioContextTracking() {
     const wrapped = proxies.get(original) || new Proxy(original, {
       construct(target, args, newTarget) {
         const context = Reflect.construct(target, args, newTarget);
-        if (ownedAudioContexts.size < 16) ownedAudioContexts.add(context);
+        if (ownedAudioContexts.size < 16) {
+          ownedAudioContexts.add(context);
+          runtimeSupport?.trackContext(context);
+        }
         return context;
       }
     });
@@ -171,6 +175,10 @@ function sampleDiagnostics(phase) {
   diagnostics.gameElapsedSeconds = diagnostics.gameStartedAtMs === null ? null
     : Math.max(0, Math.round((Date.now() - diagnostics.gameStartedAtMs) / 1000));
   diagnostics.environment = diagnosticEnvironment();
+  if (runtimeSupport) {
+    diagnostics.input = runtimeSupport.snapshot();
+    diagnostics.operationFailures = runtimeSupport.failures;
+  }
   const emulator = window.EJS_emulator;
   if (typeof emulator?.ejs_version === "string") diagnostics.runtimeVersion = emulator.ejs_version.slice(0, 80);
   if (emulator?.started) {
@@ -194,7 +202,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-18",
+    appVersion: "20261028-20",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -222,7 +230,7 @@ function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJ
 function reportPlayerError(key, values = {}, context = {}) {
   if (playerClosing) return;
   if (key === "emulatorStopped" && displayedMessage?.isError) return;
-  const signature = key + JSON.stringify(values) + String(context.name || "") + String(context.source || "");
+  const signature = key + JSON.stringify(values) + String(context.name || "") + String(context.source || "") + String(context.operation || "");
   if (signature === lastReportedError) return;
   lastReportedError = signature;
   if (diagnostics) {
@@ -443,6 +451,13 @@ function startEmulator(game, gameUrl, requestedThreads) {
   configureOptionalOptions(game);
   clearSavedThreadOverride(game);
   beginDiagnostics(game, threads, loaderVersion);
+  if (typeof window.RetroRuntimeSupport === "function") {
+    runtimeSupport = new window.RetroRuntimeSupport({
+      contexts: existingAudioContexts,
+      onFailure(error, operation) { reportPlayerError("runtimeError", { message: error?.message || String(error) }, { ...errorContext(error, "operation"), operation }); sampleDiagnostics(); },
+      onChange() { sampleDiagnostics(); }
+    });
+  }
   installAudioContextTracking();
 
   window.EJS_ready = () => {
@@ -451,6 +466,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
+    runtimeSupport?.attach(emulator);
     syncEmulatorLanguage();
     // EmulatorJS emits exit for both failures and explicit exits.
     if (typeof emulator?.on === "function") {
@@ -471,6 +487,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   window.EJS_onGameStart = () => {
     if (playerClosing) return;
+    runtimeSupport?.attach(window.EJS_emulator);
     hideMessage();
     if (diagnostics && diagnostics.gameStartedAtMs === null) diagnostics.gameStartedAtMs = Date.now();
     sampleDiagnostics("running");
@@ -586,6 +603,7 @@ async function boot() {
 function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
+  runtimeSupport?.stop();
   restoreConsoleDiagnostics?.();
   restoreAudioContextTracking?.();
   saveManager?.stop();

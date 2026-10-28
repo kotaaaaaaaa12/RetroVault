@@ -6,6 +6,7 @@ import { MemoryIndexedDB } from './support/memory-indexeddb.mjs';
 
 const appSource = await readFile(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const playerSource = await readFile(new URL('../assets/js/player.js', import.meta.url), 'utf8');
+const runtimeSupportSource = await readFile(new URL('../assets/js/runtime-support.js', import.meta.url), 'utf8');
 const coreTestSource = await readFile(new URL('../assets/js/core-test.js', import.meta.url), 'utf8');
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
@@ -97,7 +98,7 @@ async function environment(source, options = {}) {
   if (options.audioContext) window.AudioContext = options.audioContext;
   if (options.console) window.console = options.console;
   window.SharedArrayBuffer = SharedArrayBuffer;
-  window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'] };
+  window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'], ...options.navigator };
   window.location = { origin: 'https://retro.example', search: options.search || '?id=1' };
   const posts = [];
   window.parent = { postMessage: data => posts.push(data) };
@@ -120,6 +121,7 @@ async function environment(source, options = {}) {
     MutationObserver: class { constructor(callback) { observers.push(callback); } observe() {} disconnect() { this.disconnected = true; } }
   });
   vm.runInContext(i18nSource, context);
+  vm.runInContext(runtimeSupportSource, context);
   if (options.loadSaves) {
     vm.runInContext(saveStorageSource, context);
     vm.runInContext(savesSource, context);
@@ -315,6 +317,89 @@ test('private RWebAudio contexts are tracked without creating audio and close on
   assert.equal(closed, 1);
   assert.equal(env.window.AudioContext, AudioContext);
   assert.equal(created, 1);
+});
+
+test('the prerelease mobile Safari audio check does not dereference missing OpenAL contexts or create a blocking popup', async () => {
+  const env = await environment(playerSource);
+  let calls = 0;
+  const emulator = { isSafari: true, isMobile: true, ejs_version: '4.3.0-pre', Module: { AL: { currentCtx: null } },
+    checkStarted() { calls++; return this.Module.AL.currentCtx.sources; }, on() {}, canvas: new Element() };
+  const original = emulator.checkStarted;
+  assert.throws(() => original.call(emulator), TypeError);
+  env.window.EJS_emulator = emulator;
+  env.window.EJS_ready();
+  assert.doesNotThrow(() => emulator.checkStarted());
+  emulator.Module.AL.currentCtx = { sources: [] };
+  assert.doesNotThrow(() => emulator.checkStarted());
+  assert.equal(calls, 1);
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).input.audioCheck, 'gesture-recovery');
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(emulator.checkStarted, original);
+});
+
+test('the Safari startup compatibility change leaves other runtimes and browsers unchanged', async () => {
+  for (const flags of [{ isSafari: false, isMobile: true, ejs_version: '4.3.0-pre' }, { isSafari: true, isMobile: true, ejs_version: '4.2.3' }]) {
+    const env = await environment(playerSource);
+    const original = () => 'native';
+    const emulator = { ...flags, checkStarted: original, on() {} };
+    env.window.EJS_emulator = emulator; env.window.EJS_ready();
+    assert.equal(emulator.checkStarted, original);
+  }
+});
+
+test('trusted input resumes existing audio without consuming controls and records only input counts', async () => {
+  let resumed = 0;
+  class AudioContext {
+    constructor() { this.state = 'suspended'; }
+    resume() { resumed++; this.state = 'running'; return Promise.resolve(); }
+    close() { this.state = 'closed'; return Promise.resolve(); }
+  }
+  const env = await environment(playerSource, { audioContext: AudioContext });
+  const audio = new env.window.AudioContext();
+  const manager = { simulateInput(...args) { assert.equal(this, manager); return args.join(':'); } };
+  const emulator = { started: true, paused: false, gameManager: manager, on() {} };
+  env.window.EJS_emulator = emulator; env.window.EJS_ready(); env.window.EJS_onGameStart();
+  env.document.dispatch('touchend', { type: 'touchend', isTrusted: false });
+  assert.equal(resumed, 0);
+  const event = { isTrusted: true, preventDefault() { assert.fail('Input was consumed'); } };
+  env.document.dispatch('touchstart', { type: 'touchstart', ...event });
+  env.document.dispatch('touchend', { type: 'touchend', ...event });
+  assert.equal(resumed, 1);
+  assert.equal(manager.simulateInput(0, 3, 1), '0:3:1');
+  env.document.dispatch('keydown', { type: 'keydown', key: 'private-key-value', ...event });
+  vm.runInContext('sampleDiagnostics()', env.context);
+  const raw = env.window.sessionStorage.getItem('retro-vault-diagnostics');
+  const log = JSON.parse(raw);
+  assert.equal(log.input.touchEvents, 1); assert.equal(log.input.keyEvents, 1); assert.equal(log.input.coreInputCalls, 1);
+  assert.ok(!raw.includes('private-key-value'));
+  audio.state = 'suspended'; emulator.paused = true;
+  env.document.dispatch('touchend', { type: 'touchend', ...event });
+  assert.equal(resumed, 1);
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(audio.resume, AudioContext.prototype.resume);
+  env.document.dispatch('touchend', { type: 'touchend', ...event });
+  assert.equal(resumed, 1);
+});
+
+test('permission failures name the rejected operation, retain native failure behavior, and restore hooks', async () => {
+  const denied = Object.assign(new Error('Permission was denied'), { name: 'NotAllowedError', stack: '' });
+  const getGamepads = () => { throw denied; };
+  class AudioContext {
+    constructor() { this.state = 'suspended'; }
+    resume() { return Promise.reject(denied); }
+    close() { return Promise.resolve(); }
+  }
+  const env = await environment(playerSource, { audioContext: AudioContext, navigator: { getGamepads } });
+  const audio = new env.window.AudioContext();
+  assert.throws(() => env.window.navigator.getGamepads(), error => error === denied);
+  await assert.rejects(audio.resume(), error => error === denied);
+  await new Promise(resolve => setImmediate(resolve));
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.deepEqual(log.operationFailures.map(item => item.operation), ['navigator.getGamepads', 'AudioContext.resume']);
+  assert.equal(log.errors.at(-1).operation, 'AudioContext.resume');
+  assert.equal(log.errors.at(-1).name, 'NotAllowedError');
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(env.window.navigator.getGamepads, getGamepads);
 });
 
 test('errors, exit messages, backdrop taps, and Escape keep the game view open; CLOSE dismisses it', async () => {
