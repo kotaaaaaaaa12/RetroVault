@@ -114,7 +114,7 @@
     version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "20261028-14",
+      appVersion: "20261028-15",
       mode: "standalone-core-test",
       emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },
@@ -133,7 +133,7 @@
     sample();
     timer = setInterval(sample, 10000);
     window.EJS_player = "#game";
-    window.EJS_core = game.core;
+    window.EJS_core = game.coreOverride || game.core;
     window.EJS_gameID = game.id;
     window.EJS_gameName = "Retro Vault Core Test " + release + " - " + game.title;
     window.EJS_gameUrl = new URL("/data/roms/" + game.rom.split("/").map(encodeURIComponent).join("/"), location.origin).href;
@@ -174,16 +174,16 @@
     document.body.appendChild(script);
   });
 
-  fetch("/data/games.json", { cache: "no-store" }).then(response => {
+  fetch("/api/games", { cache: "no-store" }).then(response => {
     if (!response.ok) throw new Error("Failed to load games.json.");
     return response.json();
   }).then(entries => {
     if (!Array.isArray(entries)) throw new Error("Invalid game list.");
     // Both releases use the ROM from an ordinary stable NES entry.
-    games = entries.filter(game => game && game.core === "nes" && Number.isInteger(game.id)
+    games = entries.filter(game => game && ["nes", "fceumm", "nestopia"].includes(game.core) && Number.isInteger(game.id)
       && typeof game.title === "string" && typeof game.rom === "string" && game.rom.length
       && !game.bios && !game.patch && !game.gameParent && !game.dataPath
-      && (!game.ejsVersion || game.ejsVersion === "4.2.3"));
+      && (!game.ejsVersion || ["4.2.3", "4.3.0-pre"].includes(game.ejsVersion)));
     games.forEach((game, index) => {
       const option = document.createElement("option");
       option.value = String(index);

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0f">
+  <title data-i18n="coreTestTitle">NES comparison test | Retro Vault</title>
+  <script src="/assets/js/i18n.js?v=20261028-15" defer></script>
+  <script src="/assets/js/core-test.js?v=20261028-15" defer></script>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0a0a0f; color: #eee; }
+    body { margin: 0; padding: 16px; }
+    main { max-width: 900px; margin: auto; }
+    a { color: #8edbff; }
+    h1 { font-size: 1.3rem; }
+    p { line-height: 1.5; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
+    label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, select { font: inherit; padding: 10px; max-width: 100%; }
+    #test-status { min-height: 3em; }
+    #game { width: 100%; height: min(68vh, 640px); background: black; }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/admin/" data-i18n="backToAdmin">Back to management</a>
+    <h1 data-i18n="coreTest">NES comparison test</h1>
+    <p data-i18n="coreTestHelp">Choose the same NES game that reloads in the normal player, tap Start Game inside the emulator, and play for three minutes. This page runs the selected EmulatorJS release with threads disabled, without the Retro Vault launcher, player wrapper, or additional save manager.</p>
+    <p data-i18n="coreTestVersionHelp">The normal player now defaults to the tested 4.3.0-pre release. This page also offers the earlier 4.2.3 condition for comparison. The newer release changes the audio driver and disables async processing for most cores; it remains a prerelease.</p>
+    <p data-i18n="coreTestSaves">Test saves use a separate game name. Use this page only for testing. Native EmulatorJS save behavior remains at its defaults.</p>
+    <div class="controls">
+      <label for="language-select"><span data-i18n="language">Language</span>
+        <select id="language-select">
+          <option value="auto" data-i18n="auto">Auto</option>
+          <option value="en">English</option>
+          <option value="ja" lang="ja">日本語</option>
+        </select>
+      </label>
+      <label for="test-version"><span data-i18n="coreTestVersion">EmulatorJS version</span>
+        <select id="test-version">
+          <option value="4.3.0-pre" data-i18n="coreTestPreview" selected>4.3.0-pre (comparison)</option>
+          <option value="4.2.3" data-i18n="coreTestStable">4.2.3 (previous test)</option>
+        </select>
+      </label>
+      <label for="test-game"><span data-i18n="games">Games</span><select id="test-game" disabled></select></label>
+      <button id="test-start" type="button" data-i18n="play" disabled>PLAY</button>
+      <button id="test-finish" type="button" data-i18n="coreTestFinish" hidden>Finish test</button>
+      <button id="test-download" type="button" data-i18n="saveDiagnostics" hidden>Save diagnostic log</button>
+    </div>
+    <p id="test-status" role="status" aria-live="polite" data-i18n="loadingGames">LOADING GAME LIST...</p>
+    <div id="game"></div>
+  </main>
+</body>
+</html>

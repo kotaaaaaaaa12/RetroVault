@@ -1,415 +1,194 @@
 # Retro Vault
 
-A small JSON-driven EmulatorJS game library.
+A private EmulatorJS library with browser saves and password-protected management,
+served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
-After choosing a game, tap **Start Game** inside the player. Automatic startup
-is disabled so the emulator document receives a direct user interaction. This
-follows the official `EJS_startOnLoaded` guidance, which warns that automatic
-startup can freeze before the page has received user interaction. This change
-is a startup mitigation, not proof of the cause of a Safari permission failure.
+## Deploy from GitHub with Workers Builds
 
-If startup reports **Permission was denied**, close the player and use **Save
-diagnostic log** in the footer before opening another game. The local JSON now
-includes bounded error names, stacks, source locations, relevant permission
-policy flags, user activation, visibility, and existing audio context states.
-Recent internally handled runtime warnings and errors are also retained. No
-additional permissions are requested and no errors are hidden. Send the JSON
-with the affected system and game name to investigate the actual failing call.
+Create a **Workers** project from this repository, not a Pages project.
+Use the directory containing `wrangler.jsonc` as the project root.
 
-## EmulatorJS update: 2026-10-28
+| Setting | Value |
+| --- | --- |
+| Build command | Leave empty |
+| Deploy command | `npx wrangler deploy` |
+| Non-production branch deploy command | Disable until separate preview storage is configured |
 
-The main player now defaults to the same pinned **4.3.0-pre** runtime used in the
-submitted standalone NES test that ran for 325 seconds without a reload. This is
-a prerelease, not a claim of stability for every core or the complete main player
-on Safari. The default data path is
-`https://cdn.emulatorjs.org/4.3.0-pre/data/`. Per-game `ejsVersion` and `dataPath`
-overrides are still respected. For example, an explicit `ejsVersion: "4.2.3"`
-continues to use that version and its older locale-loading behavior.
+Wrangler's internal build hook runs `scripts/prepare-assets.mjs`, copies the
+interface into `.retrovault/public`, bundles the Worker, and uploads the assets.
+No separate dashboard build command, output directory, frontend framework, or
+manual D1 migration command is needed.
 
-The new loader uses the short `ja` and `en` locale names. Retro Vault supplies
-its bundled Japanese dictionary through `EJS_paths.ja` and enables the loader's
-language fetch. Explicit 4.0–4.2 loaders retain `ja-JA` and their previous switch
-semantics. Controls, save identities, game names, and game IDs are preserved.
+Wrangler 4.154.0 is pinned in `package.json` and the lockfile. Its automatic
+resource provisioning creates the **DB** D1 binding and **FILES** R2 binding on
+first deployment. Keep the Worker name and binding names stable on later deploys.
+Wrangler reuses the existing linked resources. Database tables and guards are
+initialized idempotently on the first API request.
 
-Existing state slots are retained with their recorded versions. A 4.2.3 state is
-not automatically converted or loaded into 4.3.0-pre; it can still be exported
-and used by selecting the same older version for that game. Game save paths are
-unchanged, but this is not a guarantee that every core's files are compatible
-across releases. Download a backup using the existing save controls when needed.
+Enable R2 on the Cloudflare account if it has not been activated yet. Use Standard
+storage. The bucket should remain private: do not enable an r2.dev URL or a public
+bucket custom domain. This project streams authenticated reads through the Worker.
 
-Audio contexts created in the player iframe are tracked without creating extra
-contexts. This allows the private RWebAudio context to be closed during normal
-player shutdown as well as legacy OpenAL contexts. The iframe is then unloaded.
-The log now includes the available runtime version and fast-forward/slow-motion
-flags. No frame-rate cap or Mario timer modification is introduced.
+## Set the administrator password once
 
-## Startup and controller labels
+The deployment contains **no default password**. It fails closed until the secret
+is configured. Do not put a password or its hash in `wrangler.jsonc`, GitHub, or a
+public JavaScript file.
 
-The main player uses the native **Start Game** button without an extra startup
-instruction layered over the game area. Runtime errors still use the existing
-message display. The comparison page keeps its status paragraph outside its game
-container. The Japanese dictionary includes **Controller Port Devices** and
-numbered **Port** labels, including live language changes.
+After installing dependencies on a trusted local computer, run:
 
-## Release identifier display
-
-Every HTML page sets `format-detection` to `telephone=no`. This disables Safari's
-automatic phone linking for strings such as `20261028-10` without changing the
-release identifiers themselves. Explicit links, including the official EmulatorJS
-footer link, remain regular anchors.
-
-## Same-site NES comparison
-
-The next comparison defaults to **4.3.0-pre**. The earlier **4.2.3** condition is
-still selectable. The normal player also defaults to 4.3.0-pre. Each test
-loads its complete matching runtime and cores from its versioned CDN directory;
-cores from different releases are not mixed. Save names include the test release.
-
-The [official 4.3.0-pre release notes](https://github.com/EmulatorJS/EmulatorJS/releases/tag/v4.3.0-pre)
-list the move to rwebaudio and disabling async processing for most cores. This is
-a prerelease comparison, not proof that all games are stable.
-The two pinned loaders use different conditions for language loading, so the
-comparison sets the correct option for each. Diagnostic reports include the
-configured release, data path, and available runtime version and resolved core.
-
-
-The footer links to `/pages/core-test.html`. Choose the same NES game that reloads
-in the normal player, tap **Start Game**, and play for three minutes. Then choose
-**Finish test** and **Save diagnostic log**. If the page reloads, download the
-previous log on that test page before starting another test.
-
-This page runs a selected pinned EmulatorJS release directly, with threads disabled, without an iframe,
-launcher code, player wrapper code, or the additional Retro Vault save manager.
-It retains native default save timing rather than the normal player's 30-second
-default. Test game names and native settings keys are separate from normal games. Only ordinary
-NES entries from the existing games.json are offered; custom loaders, patches,
-parent ROMs, BIOS configurations, and other systems are excluded.
-
-The bounded test log uses its own sessionStorage key and does not overwrite the
-normal player log. It samples only WebAssembly memory and metadata every ten
-seconds. A browser process termination can prevent the final sample. Neither a
-flat WASM heap nor an empty JavaScript error list establishes total process memory
-or the reason for a reload. A previous log may also result from normal navigation.
-
-This is a comparison across several integration differences, not an exact copy
-of the upstream demo or a confirmed Safari crash fix. Failure on both pages still
-needs further investigation; success here would narrow the affected integration.
-It uses the same existing EmulatorJS CDN as the normal player. No school filtering,
-proxy, or device policy settings are changed. Safari device playback remains
-untested in this environment.
-
-## Project layout
-
-```text
-Retrovault/
-├── index.html
-├── README.md
-├── coi-sw.js
-├── assets/
-│   ├── css/
-│   │   ├── style.css
-│   │   └── player.css
-│   └── js/
-│       ├── app.js
-│       ├── player.js
-│       ├── i18n.js
-│       ├── changelog.js
-│       ├── save-storage.js
-│       ├── saves.js
-│       └── coi.js
-├── data/
-│   ├── games.json
-│   ├── roms/
-│   ├── thumbs/
-│   └── bios/
-├── pages/
-│   ├── player.html
-│   └── changelog.html
-└── docs/
-    └── CORE_REFERENCE.md
+```sh
+npm ci
+npm run password --silent
 ```
 
-- `index.html` - game library UI entry point
-- `assets/css/` - all stylesheets
-- `assets/js/` - launcher, player and cross-origin-isolation scripts
-- `pages/player.html` - isolated EmulatorJS iframe document
-- `pages/changelog.html` - localized site release history, linked from the footer
-- `data/games.json` - game database
-- `data/roms/` - your legally obtained game files
-- `data/thumbs/` - thumbnail files
-- `data/bios/` - optional BIOS files you are allowed to use
+Enter a unique password of at least 12 characters. The terminal does not echo it.
+The script prints a `pbkdf2-sha256$...` hash. In Cloudflare, open your Worker,
+**Settings → Variables and Secrets**, add an encrypted secret named
+**ADMIN_PASSWORD_HASH**, paste the complete hash, and deploy that settings change.
+Alternatively, use `npx wrangler secret put ADMIN_PASSWORD_HASH` and paste the hash.
 
-## Saves on this device
+Both the game library and `/admin/` use this login. The login session lasts up to
+12 hours. Sessions use Secure, HttpOnly, SameSite=Strict cookies; write APIs require
+a session CSRF token and same-origin requests. Repeated login failures are limited.
+Changing the password hash invalidates existing sessions.
 
-Open **Saves** beside **Close** in the player header. In native fullscreen mode,
-open the EmulatorJS controls menu and choose **Saves** there. There is no
-persistent save button over the game canvas. Opening the panel pauses a running
-game; closing it resumes only a game paused by this panel.
+## Local development and verification
 
-- Game saves: use the game's own save menu first. The initial native write
-  interval is 30 seconds. The panel can also request an immediate write, and
-  closing the player flushes pending writes. A timestamp is shown only after
-  an explicit manual/closing flush reports success and a game save file exists.
-  Native periodic saves use the existing IDBFS automatic persistence; Retro
-  Vault no longer schedules an additional forced flush for each native save
-  event. Their completion time is not inferred from the save event alone.
-- State slots: three per game, stored in IndexedDB with timestamps. States are
-  captured only on manual actions, never on a timer. Saving, loading, and
-  deleting use the visible panel; replacing or deleting an existing slot and
-  loading over current progress require confirmation.
-- Backups: export a slot or the current state as `.rvstate`, then import it into
-  a slot on another device. The wrapper records game, core, and EmulatorJS
-  version information. Known mismatches are rejected. Raw `.state` files can be
-  imported after a warning because their origin cannot be checked.
-- Earlier browser states: the panel can copy the native browser state for the
-  current game into slot 1 after confirmation. It does not remove the original.
-  Existing native game saves and downloaded backups are not deleted or moved.
-- Game save file import/export remains available in the native EmulatorJS menu.
-
-Saves remain local to the browser and origin. Renaming the GitHub repository
-does not change this origin; changing the deployed domain does. Site-data
-deletion, private browsing limitations, or browser eviction can remove local
-saves. Download backups for anything important. There is no cloud sync.
-
-The first launch of this update migrates saved native storage and interval
-preferences to the new defaults once. Later user choices are preserved.
-New state slots use the stable game ID and configured core. Keep database IDs
-stable. Local file slots use filename, size, and core, independent of a file's
-modification date; this is not a full ROM content fingerprint. Avoid replacing
-a local ROM with a different file of the same name and size.
-
-The default backend core and actual EmulatorJS version are also recorded with
-each state. States from a different backend core or runtime version cannot be
-loaded through the panel. Matching labels cannot guarantee compatibility with
-every nightly core rebuild. Raw states require the same game and core. State
-payloads are limited to 256 MiB, and screenshots are omitted to avoid extra
-capture allocations. Cores without state support retain game save controls.
-
-Slot metadata and payloads are committed together. Quota or transaction failures
-do not replace an earlier slot, and revision checks prevent a stale tab's
-confirmation from overwriting or deleting a newer state. Native game save
-timestamps are small localStorage records; the save files remain in EmulatorJS's
-existing IndexedDB filesystem. State timestamps belong to the slot transaction.
-
-Validation: `node --test tests/player-stability.test.mjs`. The save tests use a
-deterministic transaction mock, not Safari or real game ROMs. Safari playback
-and per-core state compatibility still need device testing.
-
-For unexpected reloads, the diagnostic records `gameElapsedSeconds` separately
-from time spent waiting for the start tap or downloading files. It keeps the
-latest eight small activity records, including native save events and explicit
-flush starts/results. The reload notice shows the last recorded game elapsed
-time when the interrupted game matches the saved diagnostic. This is a last
-observation, not an exact crash timestamp or proof of a crash cause. Download
-the diagnostic before launching another game. The save panel is rendered only
-while open so periodic events do not rebuild hidden slot controls.
-- `docs/CORE_REFERENCE.md` - core/system reference
-- `coi-sw.js` - kept at the project root intentionally so its Service Worker scope can cover the whole app
-
-## games.json
-
-Each game needs a unique positive integer `id`.
-
-```json
-{
-  "id": 100,
-  "title": "Example Game",
-  "rom": "example.gba",
-  "core": "gba",
-  "thumbnail": "example.png"
-}
+```sh
+npm ci
+npm test
+npx wrangler deploy --dry-run
+npx wrangler dev
 ```
 
-Optional fields:
+For local development only, put the generated hash in a non-committed `.dev.vars`
+file as `ADMIN_PASSWORD_HASH="pbkdf2-sha256$..."`. Local D1 and R2 data persist under
+Wrangler's development storage. Tests use a synthetic password and synthetic bytes;
+they do not supply a production administrator password or game ROM.
 
-These fields are part of Retro Vault's own game database format. The player
-reads them and sets the corresponding EmulatorJS options; EmulatorJS does not
-read this JSON file itself. `ejsVersion` is already supported by
-`resolveDataPath(game)` in `assets/js/player.js`.
+Production deployment from an authenticated local environment uses the same single
+command as Workers Builds:
 
-```json
-{
-  "threads": true,
-  "bios": "example-bios.bin",
-  "gameParent": "extra-data.zip",
-  "patch": "example.ips",
-  "videoRotation": 0,
-  "disableCue": false,
-  "forceLegacyCores": false,
-  "ejsVersion": "4.2.3",
-  "dataPath": "https://example.com/emulatorjs/data/"
-}
+```sh
+npx wrangler deploy
 ```
 
-`threads` sets the threading policy for one game. Regular cores default to `false`; cores that require threads opt in automatically when the browser supports them. An explicit value overrides that default.
+The dry run verifies build and bundling; it does not deploy to your account.
 
-### Nintendo 3DS example
+## Routes and interface
 
-Add this object to the existing array in `data/games.json`. Use a unique ID:
+- `/`: authenticated game library, search, system filters, local ROM opening.
+- `/admin/`: add/edit games, upload ROMs, thumbnails, BIOS files and patches,
+  select a system and core, manage drafts and trash, import/export JSON.
+- `/admin/core-test.html`: authenticated NES release comparison, linked from
+  management. The old `/pages/core-test.html` route redirects here after login.
+- `/pages/changelog.html`: release history and official EmulatorJS credit.
+- `/api/games`: authenticated compatible JSON list of visible games.
+- `/data/roms/…`, `/data/thumbs/…`, `/data/bios/…`: authenticated R2 file reads.
 
-```json
-{
-  "id": 301,
-  "title": "Example 3DS Game",
-  "rom": "example.3ds",
-  "core": "3ds",
-  "thumbnail": "example.png"
-}
-```
+The main footer contains Changelog, the official EmulatorJS link, and the existing
+diagnostic-log download when a log is available. Management is linked from the
+header instead. Auto, English, and Japanese localization is shared across pages.
+Safari phone-number detection is disabled on HTML pages.
 
-Place the ROM at `data/roms/example.3ds` and the thumbnail at
-`data/thumbs/example.png`. The pinned 4.3.0-pre release includes the Azahar
-core, so no nightly override is required. Local ROMs also use the pinned default.
-The `3ds` and `azahar` core names are recognized by Retro Vault. Both require
-threads, which the launcher enables when shared memory is available. Do not set
-`threads` to `false` for these cores.
+## Add and edit games
 
-Data source precedence is `dataPath`, then a valid `ejsVersion`, then the pinned
-default (`4.3.0-pre`). Remove an old `dataPath` override if you want `ejsVersion` to
-select the CDN version. Selecting a compatible loader is not a gameplay
-test; Nintendo 3DS gameplay on Safari has not been verified.
+1. Open `/admin/` and choose **Add game**.
+2. Choose a ROM to upload. Known extensions suggest a system; ambiguous extensions
+   leave system selection to you. An explicitly chosen system or core is retained.
+3. Enter the title and choose the system. The core defaults to that system's core,
+   with supported alternate cores available in the dropdown.
+4. Upload or select a thumbnail. PNG, JPEG, and WebP uploads up to 10 MiB are
+   resized to at most 1024 pixels per side and encoded as WebP in the browser.
+5. Select **Visible in library** and save. Required referenced files must have
+   completed uploading before a game can become visible.
 
-## Changelog
+ROM/BIOS/patch files are sent in 16 MiB parts, sequentially, with bounded retries
+for a failed part. The Worker streams each part to R2. Progress and cancellation
+are available. The default per-file maximum is 8 GiB, configurable with
+`MAX_ROM_BYTES`. Browser memory and emulator compatibility remain separate limits.
+A browser reload does not automatically resume an interrupted upload; staged
+entries can be removed from File storage before retrying.
 
-The footer links to `/pages/changelog.html`, which lists this site's cumulative
-changes and follows the saved interface language. Add release entries there and
-their translations in `assets/js/i18n.js` when shipping another update. Retro
-Vault release identifiers are separate from EmulatorJS version numbers.
+The advanced JSON editor supports the current Retro Vault fields. Apply JSON to
+the form before saving. Unsupported fields are rejected rather than silently
+removed. Revision checks reject stale edits from another tab.
 
-## Local ROMs
+Deleting a game first moves it to trash. Restoring returns it to draft. Removing
+an entry permanently does **not** delete shared ROM/image files. Delete unused
+files explicitly in File storage; references from drafts and trash also protect
+files from deletion. Storage totals describe completed catalog files, not an exact
+Cloudflare bill or the size of incomplete multipart data.
 
-Use **OPEN LOCAL ROM** to choose a ROM from the device. The selected file is passed directly to the isolated player as a local `blob:` URL; it is not uploaded to the server.
+## Import the existing library
 
-The launcher auto-selects a system when the extension is distinctive, for example:
+The old `data/games.json` is not uploaded as a static asset. Import it from the
+management page. Existing positive numeric IDs are retained; duplicate or already
+used IDs reject the import without overwriting existing games. Imported entries
+start as drafts. Upload their ROMs/thumbnails and select those uploaded files,
+then make the entries visible.
 
-- `.nes` / `.fds` -> NES
-- `.sfc` / `.smc` -> SNES
-- `.gb` / `.gbc` -> Game Boy / Game Boy Color
-- `.gba` -> Game Boy Advance
-- `.z64` / `.n64` / `.v64` -> Nintendo 64
-- `.nds` -> Nintendo DS
-- `.md` / `.gen` / `.smd` -> Mega Drive / Genesis
-- `.sms` -> Master System
-- `.gg` -> Game Gear
-- `.32x` -> Sega 32X
-- `.a26` / `.a52` / `.a78` -> Atari 2600 / 5200 / 7800
-- `.pce` -> PC Engine
-- `.ngp` / `.ngc` -> Neo Geo Pocket
-- `.ws` / `.wsc` -> WonderSwan
-- `.adf` / `.adz` / `.ipf` -> Amiga
-- `.wad` -> Doom / PrBoom
-- `.3ds` / `.cci` / `.cia` -> Nintendo 3DS (4.3.0-pre by default)
+The export downloads the catalog, including draft/trash status, as JSON. Import
+adds entries only; use each entry's editor to update an existing ID. A ROM or BIOS
+is never included in a JSON export or in this source ZIP.
 
-Ambiguous archive/disc extensions such as `.bin`, `.cue`, `.iso`, `.chd`, `.zip`, `.7z`, `.rar`, `.rom`, `.dsk` and `.pbp` intentionally show the system picker instead of guessing.
+Supported configuration fields include `id`, `title`, `system`, `core`,
+`coreOverride`, `saveName`, `rom`, `thumbnail`, `bios`, `patch`, `gameParent`,
+`threads`, `videoRotation`, `disableCue`, `forceLegacyCores`, `ejsVersion`, and
+`dataPath`. The system/core options are based on the pinned 4.3.0-pre core list.
+Explicit other versions or custom data paths require their own compatibility
+verification. `dataPath` takes precedence over `ejsVersion`, then the pinned default.
 
-Multi-file disc games can still require a BIOS and/or a packaged disc set. A single local `.cue` file cannot magically include track files that were not selected.
+The `rom`, `thumbnail`, `bios`, `patch`, and `gameParent` fields contain R2 object
+keys after upload. The interface displays their original file names. Advanced
+JSON and exports retain the keys so references round-trip reliably.
 
-## Threads
+## Saves and runtime behavior
 
-The launcher has no Threads switch or thread status labels. NES, SNES, and other regular cores start with threads disabled, regardless of the old site preference. Existing per-game EmulatorJS thread overrides are removed before launch without changing saves, controls, cheats, or other settings. The emulator's own settings menu remains available.
+Game IDs are stable. `core` keeps its existing library identity; `coreOverride`
+selects another backend without rewriting that identity. `saveName` is fixed when
+editing a title. JSON migration initializes it from the previous title to retain
+native browser-state/settings names. Original uploaded ROM basenames are retained.
+Changing the system, ROM filename/content, core, or emulator version can still
+change save compatibility. Keep backups when changing those settings.
 
-PSP, DOSBox Pure, and experimental 3DS cores opt in only because this project treats them as threaded-only. An explicit `threads` field in `games.json` overrides that policy. Unsupported browsers show an error for those cores instead of silently trying an incompatible mode.
+Three device-local state slots, `.rvstate` import/export, legacy-state import,
+manual game-save writes, and native save-file import/export remain available.
+State metadata checks game identity, actual backend core, and emulator version.
+Cloud save synchronization is not introduced by the catalog database.
 
-Threaded cores still require cross-origin isolation. Cloudflare Pages should send these headers directly:
+The player waits for a tap on the native Start Game button. Ordinary systems use
+threads OFF; required cores such as Azahar enable threads when supported. The
+Worker sends COOP/COEP headers for shared memory, including API/error responses.
+Closing pauses the game, bounds save flushing, closes tracked audio contexts,
+releases canvas/object URLs, then unloads the iframe. Errors keep the player open.
 
-```text
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
-```
+The footer's diagnostic download remains device-local. It measures WebAssembly
+memory and bounded runtime metadata, not total Safari/GPU memory. Download a log
+after a reload before starting another game. The NES comparison that motivated
+the upgrade ran for 325 seconds in the submitted test; updated main-player
+playback across all systems and Safari devices is not guaranteed.
 
-PSP requires Threads. DOSBox Pure and experimental 3DS builds should also be treated as threaded-only in this project.
+## Move the existing custom domain
 
-## EmulatorJS version
+First deploy and verify the Worker on its workers.dev address. If the current
+custom domain is attached to Pages, detach it there and add it as a custom domain
+on this Worker when ready. The source configuration deliberately does not take
+over or delete the existing Pages project or domain automatically.
 
-The default EmulatorJS data path is pinned to `4.3.0-pre` instead of a moving channel. This avoids an unrelated future release silently changing the site.
+Code deployment does not remove ROMs already committed to GitHub or its history.
+After confirming the private migration and backups, remove those public copies
+and review history separately. Hosting privately does not grant distribution rights.
 
-A game can explicitly select another EmulatorJS version with `ejsVersion`, for example `latest` or `nightly`. Use moving channels only when you intentionally accept breaking changes.
+## Files and storage
 
-## Supported system names
+`worker/` contains the request router, authentication, D1 schema/validation, and R2
+upload/read handlers. Public interface sources stay in `assets/`, `pages/`, and
+`admin/`; the preparation script copies only allowed interface file types from
+those directories, plus `index.html`, `version.txt`, and `_headers`.
 
-The UI recognizes the common EmulatorJS aliases and many explicit core names, including:
-
-- Nintendo: NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Virtual Boy, Nintendo 64, Nintendo DS
-- Sony: PlayStation, PSP
-- Sega: Mega Drive / Genesis, Master System, Game Gear, Sega CD, 32X, Saturn
-- Atari: 2600, 5200, 7800, Lynx, Jaguar
-- Arcade: Arcade / FBNeo, MAME 2003
-- NEC / SNK / Bandai: PC Engine, PC-FX, Neo Geo Pocket, WonderSwan
-- Other consoles: 3DO, ColecoVision
-- Commodore: C64, C128, VIC-20, Plus/4, PET, Amiga
-- DOSBox Pure
-- Extra cores exposed by the pinned core set: ZX81, ZX Spectrum, Amstrad CPC, Doom / PrBoom and Philips CD-i
-
-Nintendo 3DS is included in the pinned `4.3.0-pre` core set through Azahar. It requires threads and WebGL2. Its inclusion does not establish gameplay compatibility on Safari.
-
-## Why the iframe exists
-
-EmulatorJS mutates the document and owns long-lived resources such as WebAssembly, audio, input listeners and animation loops. Every game is therefore launched inside `pages/player.html`. Closing the modal navigates that iframe to `about:blank`, tearing down the entire emulator document before another game starts.
-
-
-## Legacy layout compatibility
-
-The app prefers `data/games.json`, `data/roms/`, and `data/thumbs/`. It also automatically falls back to the original root-level `games.json`, `roms/`, and `thumbs/` paths, so the site keeps working while files are being reorganized.
-
-## Cloudflare Pages
-
-This build is ready for Cloudflare Pages. `_headers` is included at the deploy root and enables the COOP/COEP headers required for SharedArrayBuffer/Threads.
-
-The previous automatic COI Service Worker bootstrap has been removed. Cloudflare Pages should provide cross-origin isolation directly through response headers, avoiding first-load reload loops and Safari/iPad Service Worker edge cases.
-
-Deploy the *contents* of this directory as the Pages output root so that `index.html` and `_headers` are both at `/`.
-
-
-## Cloudflare Pages deployment root
-
-The Pages output directory must be the directory containing `index.html`, `_headers`, `assets/`, `data/`, and `pages/`. Do not publish the parent directory. This build includes a visible boot probe: if JavaScript fails, `LOADING RETRO VAULT…` remains visible instead of a blank page.
-
-## Cloudflare Pages v3 diagnostics
-
-- `_redirects` routes application paths to `/index.html`.
-- `version.txt` identifies this deployment as `retro-vault-cloudflare-v3-20260901`.
-- `index.html` unregisters legacy `coi-sw.js` service workers left by older builds.
-- Threads should come from the `_headers` COOP/COEP response headers, not from a service worker.
-
-## Player stability update: 2026-10-28
-
-- Removed the launcher Threads switch, status observer, and old site preference.
-- Direct player URLs default to threads disabled unless `threads=1` is supplied.
-- Only the launcher CLOSE button dismisses the player. Backdrop clicks, Escape, and generic emulator exit messages no longer return to the game list.
-- Emulator errors, unhandled exceptions, and WebGL context loss are shown inside the player. EmulatorJS 4.2.3's actual exit event is observed as well as compatibility callbacks.
-- A session marker reports a page reload during a game. Browser process termination cannot be prevented or diagnosed from JavaScript alone.
-- Updated asset versions so browsers request the changed JavaScript and stylesheets.
-
-To apply the overlay, extract its contents into the existing repository root and overwrite matching files. ROMs, thumbnails, BIOS files, and games.json are not included or changed. Deploy through the existing Cloudflare Pages workflow. This update does not require a build command.
-
-## Internationalization update: 2026-10-28
-
-This cumulative overlay includes every file and behavior from the previous threading and player-stability overlay.
-
-- The launcher language control provides Auto, English, and Japanese. Auto uses the browser's preferred language. The selected mode is saved on the device.
-- Static text, accessibility labels, system names, search, filters, local-ROM selection, counters, startup errors, runtime errors, and reload notices use shared message dictionaries.
-- Language changes update the launcher and active player without restarting a running game. Filters and local-ROM system selections are retained.
-- EmulatorJS 4.2.3 calls its Japanese locale `ja-JA`, not `ja-JP`. The player now uses the correct identifier and supplies the complete bundled dictionary through an object URL. No additional translation service is used.
-- The native dictionary extends the upstream Japanese translations with missing standard menu labels and common FCEUmm/Snes9x core settings. Game titles, technical names, original license text, and text drawn by ROMs remain their original content.
-- Unknown JavaScript failures show translated guidance; their original technical messages remain in the developer console.
-- Japanese controls use a system font and adjusted sizing. The language selector releases pointer focus after selection.
-
-Apply this ZIP directly over the repository root; the previous ZIP does not need to be applied separately. Existing ROM, BIOS, thumbnail, and game database files are not replaced. Then redeploy through the existing Cloudflare Pages setup.
-
-Run the regression checks with `node --test tests/player-stability.test.mjs`. These checks validate locale selection, native dictionary delivery, live switching, and the retained threading and player-close behavior. They do not constitute a Safari device playback test.
-
-## Memory and lifecycle update: 2026-10-28
-
-This cumulative overlay retains the complete threading, player-stability, and internationalization updates.
-
-- Production mode replaces the always-on EmulatorJS debug setting. EmulatorJS 4.2.3 enables its core cache in this mode and avoids verbose runtime logging.
-- The game library, thumbnails, header animations, and footer are hidden while a game is open. The active player uses an opaque background without backdrop blur or wrapper shadows.
-- Closing uses a bounded stop handshake. The player pauses the core, requests SRAM saving, waits briefly for filesystem persistence, closes known audio contexts, reduces the canvas to 1 x 1, disconnects its translation observer, clears its timers, and revokes owned object URLs. The launcher then unloads the iframe. A stalled player cannot block closing indefinitely.
-- The shutdown path avoids calling a nonexistent `emulator.exit()` method and prevents the native beforeunload path from resetting an already-stopped core. This does not delete save data or disable normal save features.
-- A backgrounded game is paused and resumes when visible again; a game that was paused manually remains paused.
-- Local-ROM File references are released after the core starts. Runtime translation reuses its dictionary lookup entries and does not traverse an entire subtree for an attribute-only mutation.
-- A bounded diagnostic record samples the core's WebAssembly heap length every 10 seconds. It never copies the heap or captures game frames. The latest session record remains in sessionStorage after a reload, subject to the browser's storage behavior.
-- After a session, the footer offers **Save diagnostic log**. If Safari reloads the page again, save this JSON before starting another game; a new session replaces the previous record. The log includes game/core metadata, browser user agent, last sampled WebAssembly heap size and growth count, lifecycle phase, and up to four recent errors. Nothing is uploaded automatically.
-- The EmulatorJS footer credit links to https://emulatorjs.org/ in a new tab.
-
-The recorded heap size is only the core's WebAssembly linear memory. It does not measure total Safari memory, JavaScript allocations, audio allocations, compositor memory, or GPU memory. A Safari process termination can prevent JavaScript from receiving an error or writing a final sample. See `docs/MEMORY-NOTES.md` for the investigation, sources, and limits.
+ROM, BIOS, root game-data directories, server source, tests, dependency folders,
+and secrets are never copied into the public asset directory. Avoid placing ROMs
+or secrets inside interface asset directories. Use `.gitignore` to keep local
+secrets, generated output, and dependencies out of Git.

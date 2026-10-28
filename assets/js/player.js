@@ -194,7 +194,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-14",
+    appVersion: "20261028-15",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -252,10 +252,11 @@ function clearSavedThreadOverride(game) {
   // Migrate save defaults once; keep save files, controls, and cheats intact.
   try {
     const storage = window.localStorage;
-    const migrationKey = "retro-vault-save-defaults:" + JSON.stringify([game.id, game.core, game.title]);
+    const saveName = game.saveName || game.title;
+    const migrationKey = "retro-vault-save-defaults:" + JSON.stringify([game.id, game.core, saveName]);
     const migrateSaves = storage.getItem(migrationKey) !== "1";
     const prefix = `ejs-${game.id}-`;
-    const suffix = `-${game.title}-settings`;
+    const suffix = `-${saveName}-settings`;
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index);
       if (!key || !key.startsWith(prefix) || !key.endsWith(suffix)) continue;
@@ -308,7 +309,7 @@ function encodeAssetPath(folder, filename) {
 }
 
 async function fetchGames() {
-  const candidates = ["/data/games.json", "/games.json"];
+  const candidates = ["/api/games"];
   let lastError = null;
 
   for (const path of candidates) {
@@ -399,7 +400,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     throw playerError("invalidConfig");
   }
 
-  const core = CORE_ALIASES[game.core] || game.core;
+  const core = game.coreOverride || CORE_ALIASES[game.core] || game.core;
   const threadSupport =
     window.crossOriginIsolated === true &&
     typeof window.SharedArrayBuffer === "function";
@@ -418,7 +419,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   // Keep the player configuration intentionally close to the official EmulatorJS demo.
   window.EJS_player = "#game";
   window.EJS_gameID = game.id;
-  window.EJS_gameName = game.title;
+  window.EJS_gameName = game.saveName || game.title;
   window.EJS_gameUrl = gameUrl;
   window.EJS_core = core;
   window.EJS_pathtodata = dataPath;

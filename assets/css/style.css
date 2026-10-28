@@ -848,3 +848,5 @@ footer a {
   outline: 2px solid var(--accent-2);
   outline-offset: 4px;
 }
+
+.admin-link { display: inline-block; margin-top: 1rem; color: var(--accent-2); font: .85rem system-ui, sans-serif; }

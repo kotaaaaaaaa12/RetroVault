@@ -2,6 +2,10 @@
 
 The launcher and player use `assets/js/i18n.js`. Interface dictionaries are available for English (`en`) and Japanese (`ja`); the default selection mode is `auto`.
 
+The Workers login, management page, upload controls, validation messages, and
+NES comparison share the same dictionaries and browser language preference.
+Hardware/core identifiers and editable JSON keys retain their technical names.
+
 EmulatorJS native translations are based on these v4.2.3 and v4.3.0-pre source files:
 
 - https://github.com/EmulatorJS/EmulatorJS/blob/v4.2.3/data/localization/en-US.json

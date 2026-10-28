@@ -486,8 +486,7 @@ async function fetchFirstAvailableJson(paths) {
 
 async function loadGames() {
   try {
-    // Prefer the organized layout, but keep compatibility with the original root-level games.json.
-    const data = await fetchFirstAvailableJson(["/data/games.json", "/games.json", "./data/games.json", "./games.json"]);
+    const data = await fetchFirstAvailableJson(["/api/games"]);
     if (!Array.isArray(data)) {
       throw new TypeError("games.json must contain an array.");
     }

@@ -267,6 +267,16 @@ test('main player defaults to the tested prerelease while explicit legacy loader
   }
 });
 
+test('managed games keep save names and thread preferences stable when titles change and core overrides change the backend', async () => {
+  const game = { ...games[0], title: 'Renamed Game', saveName: 'Original Name', coreOverride: 'nestopia' };
+  const key = 'ejs-1-nes-Original Name-settings';
+  const env = await environment(playerSource, { games: [game], localStorage: { [key]: JSON.stringify({ settings: { ejs_threads: 'enabled', volume: .4 } }) } });
+  assert.equal(env.window.EJS_gameName, 'Original Name');
+  assert.equal(env.window.EJS_core, 'nestopia');
+  assert.equal(env.window.EJS_threads, false);
+  assert.deepEqual(JSON.parse(env.window.localStorage.getItem(key)).settings, { volume: .4 });
+});
+
 test('library and local 3DS entries use the pinned prerelease with required threads', async () => {
   const game = { ...games[0], core: '3ds', rom: 'game.3ds' };
   const player = await environment(playerSource, { games: [game], search: '?id=1&threads=1' });
@@ -408,9 +418,10 @@ test('both locale dictionaries cover every interface key used by scripts and mar
   const env = await environment(appSource);
   const playerHtml = await readFile(new URL('../pages/player.html', import.meta.url), 'utf8');
   const changelogHtml = await readFile(new URL('../pages/changelog.html', import.meta.url), 'utf8');
-  const source = appSource + playerSource + savesSource + html + playerHtml + changelogHtml;
+  const managementSources = await Promise.all(['../admin/index.html', '../admin/login.html', '../admin/core-test.html', '../assets/js/admin.js', '../assets/js/login.js', '../assets/js/core-test.js'].map(path => readFile(new URL(path, import.meta.url), 'utf8')));
+  const source = appSource + playerSource + savesSource + html + playerHtml + changelogHtml + managementSources.join('\n');
   const keys = new Set([
-    ...[...source.matchAll(/(?:\bt|setNotice|reportPlayerError|playerError|showMessage|setStatus|ask)\("([a-zA-Z]+)"/g)].map(match => match[1]),
+    ...[...source.matchAll(/(?:\bt|setNotice|reportPlayerError|playerError|showMessage|setStatus|ask|show|makeButton)\(["']([a-zA-Z]+)["']/g)].map(match => match[1]),
     ...[...source.matchAll(/data-i18n(?:-[a-z-]+)?="([a-zA-Z]+)"/g)].map(match => match[1]),
     'ambiguousExtension', 'unknownExtension', 'runtimeError', 'saveHere', 'loadHere', 'downloadBackup', 'importBackup', 'deleteSave'
   ]);

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="format-detection" content="telephone=no">
+  <title data-i18n="adminTitle">Manage library | Retro Vault</title>
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20261028-15">
+  <script src="/assets/js/i18n.js?v=20261028-15" defer></script>
+  <script type="module" src="/assets/js/admin.js?v=20261028-15"></script>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>RETRO VAULT</h1><span data-i18n="adminManage">Manage library</span></div>
+    <nav>
+      <a href="/" data-i18n="backToGames">Back to games</a>
+      <a href="/admin/core-test.html" data-i18n="coreTest">NES comparison test</a>
+      <label class="language"><span data-i18n="language">Language</span><select id="language-select"><option value="auto" data-i18n="auto">Auto</option><option value="en">English</option><option value="ja">日本語</option></select></label>
+      <button id="logout" type="button" data-i18n="adminLogout">Sign out</button>
+    </nav>
+  </header>
+  <p id="admin-status" class="status" role="status" hidden></p>
+  <div class="actions">
+    <button id="new-game" type="button" data-i18n="adminAdd">Add game</button>
+    <button id="import-json" type="button" data-i18n="adminImport">Import JSON</button>
+    <button id="export-json" type="button" data-i18n="adminExport">Export JSON</button>
+    <input id="import-input" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="columns" style="margin-top:20px">
+    <section class="panel">
+      <h2 data-i18n="games">Games</h2>
+      <label><span data-i18n="searchGames">Search games</span><input id="admin-search" type="search"></label>
+      <label class="actions"><input id="show-trash" type="checkbox"><span data-i18n="adminShowTrash">Show trash</span></label>
+      <div id="admin-games"></div>
+    </section>
+    <section class="panel">
+      <h2 id="editor-heading" data-i18n="adminAdd">Add game</h2>
+      <form id="game-form">
+        <p id="game-identity" class="hint"></p>
+        <label><span data-i18n="adminGameTitle">Title</span><input id="game-title" maxlength="180" required></label>
+        <div class="fields">
+          <label><span data-i18n="selectSystem">SELECT SYSTEM</span><select id="game-system"></select></label>
+          <label><span data-i18n="adminCore">Emulator core</span><select id="game-core"></select></label>
+        </div>
+        <label><span data-i18n="adminState">Library status</span><select id="game-status"><option value="draft" data-i18n="adminDraft">Draft</option><option value="ready" data-i18n="adminReady">Visible in library</option></select></label>
+        <p class="hint" data-i18n="adminDraftHelp">Imported entries start as drafts. Upload or select their files before making them visible.</p>
+        <div id="file-fields"></div>
+        <img id="thumbnail-preview" class="preview" alt="" hidden>
+        <div id="upload-progress" hidden><progress id="upload-meter" max="100" value="0"></progress><p id="upload-label" role="status"></p><button id="cancel-upload" type="button" data-i18n="cancel">CANCEL</button></div>
+        <details id="json-details"><summary data-i18n="adminAdvanced">Advanced JSON</summary><p class="hint" data-i18n="adminJsonHelp">Edit supported settings such as the EmulatorJS version, BIOS, patch, and rotation. Apply JSON changes to the form before saving.</p><textarea id="game-json" spellcheck="false" aria-label="Game configuration JSON" data-i18n-aria-label="adminJsonLabel"></textarea><button id="apply-json" type="button" data-i18n="adminApplyJson">Apply JSON to form</button></details>
+        <p class="hint" data-i18n="adminSaveIdentity">Game IDs and save identifiers stay fixed when editing titles. States still require the same core and EmulatorJS version.</p>
+        <button id="save-game" type="submit" data-i18n="adminSave">Save game</button>
+      </form>
+    </section>
+  </div>
+  <details class="panel"><summary data-i18n="adminStorage">File storage</summary><p id="storage-summary"></p><p class="hint" data-i18n="adminStorageHelp">Deleting a game entry keeps its files. Remove unused files here. Files referenced by any game, including drafts and trash, cannot be removed.</p><div id="admin-files"></div></details>
+  <dialog id="confirm-dialog"><p id="confirm-text" tabindex="-1"></p><div class="actions"><button id="confirm-no" type="button" data-i18n="cancel">CANCEL</button><button id="confirm-yes" type="button" data-i18n="continueAction">Continue</button></div></dialog>
+</main>
+</body>
+</html>
