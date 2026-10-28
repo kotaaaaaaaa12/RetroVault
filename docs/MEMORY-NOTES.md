@@ -22,6 +22,22 @@ Pinned source references:
 - https://github.com/EmulatorJS/EmulatorJS/blob/v4.2.3/data/src/GameManager.js
 - https://github.com/EmulatorJS/EmulatorJS/blob/v4.2.3/data/loader.js
 
+## Periodic save write review
+
+`GameManager.mountFileSystems()` mounts `/data/saves` using IDBFS with
+`autoPersist: true`. The save manager added in the earlier overlay also called
+`FS.syncfs(false)` after every native `saveSaveFiles` event. That duplicated
+the persistence work and caused hidden slot controls to be rebuilt on each
+completion. The native save listener now only records a small activity marker.
+Manual save and close operations retain their explicit flush and confirmation.
+Native automatic saving remains enabled with the same initial 30-second
+interval. Confirmed timestamps refer to completed manual/closing flushes.
+
+This is a confirmed redundant operation in the integration, not proof that it
+caused the reported Safari reload. Upstream #1143 also includes a report of
+reloads with save intervals disabled. The core, WebKit, and integration cannot
+be distinguished from the symptom alone.
+
 ## Diagnostics and limits
 
 The latest session diagnostic is sampled every 10 seconds, on phase changes, and on captured errors. Only numeric heap length and small metadata are serialized. Errors are deduplicated and limited to the latest four entries, with bounded message lengths. The diagnostic download is local; it does not contact a logging service.
@@ -32,6 +48,13 @@ relevant console warnings/errors, including internally handled exceptions.
 Console output is forwarded unchanged and the temporary hooks are restored on
 shutdown. The launcher accepts diagnostic records up to 32,000 characters. No
 memory buffer, screenshot, or save-state data is included in these records.
+
+Reload diagnostics now also include the time since the actual game-start event,
+a native save-event counter, and at most eight recent activity markers. They
+record the last observation before a reload and do not identify the OS's reason
+for terminating a process. Sampling stays at ten seconds and uses no extra
+graphics/audio contexts or save-state captures. The last timing may therefore
+precede the actual reload by several seconds.
 
 User activation, document visibility, existing audio context states, and
 supported permission-policy flags are read without requesting permissions or

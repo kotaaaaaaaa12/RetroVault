@@ -901,7 +901,10 @@ refreshDiagnosticsButton();
 const interruptedGame = storageGet(ACTIVE_GAME_KEY);
 if (interruptedGame) {
   storageSet(ACTIVE_GAME_KEY, null);
-  setNotice("pageReloaded", { title: interruptedGame });
+  const previous = readDiagnostics();
+  if (previous?.game?.title === interruptedGame && Number.isFinite(previous.gameElapsedSeconds) && previous.gameElapsedSeconds > 0) {
+    setNotice("pageReloadedWithTiming", { title: interruptedGame, seconds: Math.round(previous.gameElapsedSeconds) });
+  } else setNotice("pageReloaded", { title: interruptedGame });
 }
 loadGames();
 

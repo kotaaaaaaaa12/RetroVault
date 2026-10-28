@@ -640,6 +640,7 @@ test('raw imports require confirmation and unsupported cores do not attempt stat
   await raw;
   assert.equal(env.manager.slots.length, 1);
   const unsupported = await saveEnvironment({ supportsStates: false });
+  await unsupported.manager.open();
   await unsupported.manager.run(() => unsupported.manager.saveState(1));
   assert.equal(unsupported.calls.states, 0);
   assert.equal(unsupported.manager.status.key, 'saveStatesUnsupported');
@@ -652,14 +653,16 @@ test('normal save timestamps follow successful filesystem writes, and never capt
   env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
   assert.equal(env.manager.systemSavedAt, undefined);
   assert.equal(env.calls.states, 0);
+  assert.equal(callbacks.length, 0);
+  const saving = env.manager.flushSystem();
   callbacks.shift()(null);
-  await waitFor(() => env.manager.systemFlush === null);
+  await saving;
   const savedAt = env.manager.systemSavedAt;
   assert.ok(Date.parse(savedAt));
   assert.equal(env.window.localStorage.getItem('retro-vault-system-save:' + env.manager.gameKey), savedAt);
-  env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  const failed = env.manager.flushSystem();
   callbacks.shift()(new Error('Write failed'));
-  await waitFor(() => env.manager.systemFlush === null);
+  await failed;
   assert.equal(env.manager.systemSavedAt, savedAt);
   assert.equal(env.manager.status.key, 'systemSaveFailed');
   assert.equal(env.calls.states, 0);
@@ -674,13 +677,14 @@ test('normal save timestamps follow successful filesystem writes, and never capt
 test('shutdown serializes an in-flight flush with the final write before acknowledging', async () => {
   const callbacks = [];
   const env = await saveEnvironment({ syncfs(populate, callback) { callbacks.push(callback); } });
-  env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  const saving = env.manager.flushSystem();
   const cleanup = vm.runInContext('shutdownPlayer()', env.context);
   assert.equal(callbacks.length, 1);
   callbacks.shift()(null);
   assert.equal(callbacks.length, 1);
   callbacks.shift()(null);
   await cleanup;
+  await saving;
   assert.equal(env.window.EJS_emulator, null);
   assert.equal(env.manager.closing, true);
   assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).saveFlush, 'saved');
@@ -807,4 +811,45 @@ test('the save entry stays out of the game canvas and appears only in the fullsc
   assert.equal(toggle.hidden, true);
   assert.equal(env.document.handlers.get('fullscreenchange').length, 0);
   assert.equal(env.document.handlers.get('webkitfullscreenchange').length, 0);
+});
+
+test('native save events add no forced filesystem writes or hidden slot renders', async () => {
+  let syncs = 0;
+  const env = await saveEnvironment({ syncfs(populate, callback) { syncs += 1; callback(null); } });
+  let slotRenders = 0;
+  const slots = env.elements.get('save-slots');
+  const replace = slots.replaceChildren.bind(slots);
+  slots.replaceChildren = (...items) => { slotRenders += 1; return replace(...items); };
+  for (let index = 0; index < 20; index += 1) env.handlers.get('saveSaveFiles')(new Uint8Array([8, 9]));
+  env.manager.render();
+  assert.equal(syncs, 0);
+  assert.equal(slotRenders, 0);
+  assert.equal(env.calls.states, 0);
+  assert.equal(env.manager.systemSavedAt, undefined);
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.nativeSaveEvents, 20);
+  assert.equal(log.activities.length, 8);
+  assert.ok(log.activities.every(item => item.action === 'native-save-event' && typeof item.hasSystemData === 'boolean'));
+  await env.manager.open();
+  assert.equal(slotRenders > 0, true);
+});
+
+test('diagnostics distinguish time spent loading from elapsed time after the game starts', async () => {
+  const env = await environment(playerSource);
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).gameElapsedSeconds, null);
+  env.window.EJS_onGameStart();
+  vm.runInContext('diagnostics.gameStartedAtMs = Date.now() - 42000; sampleDiagnostics()', env.context);
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.gameElapsedSeconds, 42);
+  const sessionStorage = storage({
+    'retro-vault-active-game': 'Test Game',
+    'retro-vault-diagnostics': JSON.stringify(log)
+  });
+  const app = await environment(appSource, { sessionStorage });
+  assert.match(app.elements.get('notice').textContent, /42 seconds/);
+  const mismatch = await environment(appSource, { sessionStorage: storage({
+    'retro-vault-active-game': 'Another Game',
+    'retro-vault-diagnostics': JSON.stringify(log)
+  }) });
+  assert.doesNotMatch(mismatch.elements.get('notice').textContent, /42 seconds/);
 });

@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-8">
-  <script src="/assets/js/i18n.js?v=20261028-8" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-8" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-9">
+  <script src="/assets/js/i18n.js?v=20261028-9" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-9" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -32,8 +32,16 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-9">
+      <div class="release-meta"><span>20261028-9</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-9" data-i18n="releaseNineTitle">Save write cleanup and reload diagnostics</h2>
+      <ul>
+        <li data-i18n="releaseNineWrites">Removed extra forced filesystem writes after native automatic saves and stopped rebuilding the hidden save panel during play.</li>
+        <li data-i18n="releaseNineTiming">Added elapsed time since game start and a bounded recent activity log. Reload notices show the last recorded elapsed time when available.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-8">
-      <div class="release-meta"><span>20261028-8</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-8</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-8" data-i18n="releaseEightTitle">Save controls placement</h2>
       <ul>
         <li data-i18n="releaseEightControls">Removed the persistent save button over the game. Use Saves beside Close, or the EmulatorJS controls menu in fullscreen mode.</li>

@@ -97,7 +97,7 @@
     "backToGame": "Back to game",
     "saveManagerHelp": "Game saves keep the progress recorded in the game's save menu. State slots capture the current moment.",
     "systemSaveTitle": "Game save",
-    "systemSaveHelp": "Game saves are written to this browser periodically and when you close the player. Use the game's own save menu first.",
+    "systemSaveHelp": "Game saves are written to this browser periodically and when you close the player. Use the game's own save menu first. The date shows a write confirmed by Write game save now or closing the player.",
     "saveSystemNow": "Write game save now",
     "stateSlotsTitle": "State slots",
     "downloadCurrentState": "Download current state",
@@ -105,7 +105,7 @@
     "systemBackupHelp": "Game save file backups are available in the EmulatorJS Import Save File and Export Save File menu.",
     "continueAction": "Continue",
     "localSaveNotice": "Saves stay in this browser and do not sync between devices. Keep a downloaded backup before clearing site data.",
-    "systemSavedAt": "Last game save write: {date}",
+    "systemSavedAt": "Last confirmed game save write: {date}",
     "systemNotSaved": "No game save write has been confirmed yet.",
     "saveSlotName": "Slot {slot}",
     "stateSavedAt": "Saved: {date}",
@@ -152,7 +152,11 @@
     "releaseSevenTitle": "Changelog fonts",
     "releaseSevenFonts": "Loaded the same logo and interface fonts as the game library on the changelog page.",
     "releaseEightTitle": "Save controls placement",
-    "releaseEightControls": "Removed the persistent save button over the game. Use Saves beside Close, or the EmulatorJS controls menu in fullscreen mode."
+    "releaseEightControls": "Removed the persistent save button over the game. Use Saves beside Close, or the EmulatorJS controls menu in fullscreen mode.",
+    "pageReloadedWithTiming": "The page reloaded while {title} was open. The last diagnostic was recorded about {seconds} seconds after the game started. Save the diagnostic log before opening another game.",
+    "releaseNineTitle": "Save write cleanup and reload diagnostics",
+    "releaseNineWrites": "Removed extra forced filesystem writes after native automatic saves and stopped rebuilding the hidden save panel during play.",
+    "releaseNineTiming": "Added elapsed time since game start and a bounded recent activity log. Reload notices show the last recorded elapsed time when available."
   },
   "ja": {
     "subtitle": "ゲームを選んでプレイ",
@@ -246,7 +250,7 @@
     "backToGame": "ゲームに戻る",
     "saveManagerHelp": "ゲーム内セーブは、ゲームのセーブ操作で記録した進行状況です。ステートは、プレイ中のその瞬間の状態を保存します。",
     "systemSaveTitle": "ゲーム内セーブ",
-    "systemSaveHelp": "ゲーム内セーブは定期的に、またプレイヤーを閉じる時にブラウザへ書き込みます。先にゲーム内のセーブ操作を行ってください。",
+    "systemSaveHelp": "ゲーム内セーブは定期的に、またプレイヤーを閉じる時にブラウザへ書き込みます。先にゲーム内のセーブ操作を行ってください。日時は「今すぐ保存」または終了時に書き込みを確認できたものを表示します。",
     "saveSystemNow": "ゲーム内セーブを今すぐ保存",
     "stateSlotsTitle": "ステートの保存スロット",
     "downloadCurrentState": "現在のステートをダウンロード",
@@ -254,7 +258,7 @@
     "systemBackupHelp": "ゲーム内セーブのファイルは、EmulatorJSの「セーブファイルをインポート／エクスポート」から取り込み・書き出しできます。",
     "continueAction": "続行",
     "localSaveNotice": "セーブはこのブラウザ内に保存され、別の端末とは同期されません。サイトデータを消す前にバックアップをダウンロードしてください。",
-    "systemSavedAt": "ゲーム内セーブの最終書き込み：{date}",
+    "systemSavedAt": "書き込みを確認できた最終日時：{date}",
     "systemNotSaved": "ゲーム内セーブの書き込みはまだ確認できていません。",
     "saveSlotName": "スロット{slot}",
     "stateSavedAt": "保存日時：{date}",
@@ -301,7 +305,11 @@
     "releaseSevenTitle": "更新履歴のフォント",
     "releaseSevenFonts": "更新履歴ページでも、ゲーム一覧と同じロゴと画面のフォントを読み込むようにしました。",
     "releaseEightTitle": "セーブボタンの配置",
-    "releaseEightControls": "ゲーム画面に重なる常駐セーブボタンを削除しました。通常時は「閉じる」の左、全画面時はEmulatorJSの操作メニューから開けます。"
+    "releaseEightControls": "ゲーム画面に重なる常駐セーブボタンを削除しました。通常時は「閉じる」の左、全画面時はEmulatorJSの操作メニューから開けます。",
+    "pageReloadedWithTiming": "「{title}」を開いている間にページが再読み込みされました。最後の診断記録はゲーム開始から約{seconds}秒後です。別のゲームを開く前に診断ログを保存してください。",
+    "releaseNineTitle": "保存処理の整理と再読み込みの診断",
+    "releaseNineWrites": "標準の自動保存に重ねて行っていた強制書き込みを削除しました。プレイ中に非表示のセーブ画面を作り直す処理も省きました。",
+    "releaseNineTiming": "ゲーム開始後の経過時間と、件数を制限した直近の処理記録を追加しました。再読み込み時には、記録があれば最後に確認した経過時間を表示します。"
   }
 };
   const nativeEn = {

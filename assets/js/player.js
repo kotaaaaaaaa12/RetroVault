@@ -132,20 +132,37 @@ function sampleDiagnostics(phase) {
   if (phase) diagnostics.phase = phase;
   diagnostics.lastSampleAt = new Date().toISOString();
   diagnostics.elapsedSeconds = Math.round((Date.now() - diagnostics.startedAtMs) / 1000);
+  diagnostics.gameElapsedSeconds = diagnostics.gameStartedAtMs === null ? null
+    : Math.max(0, Math.round((Date.now() - diagnostics.gameStartedAtMs) / 1000));
   diagnostics.environment = diagnosticEnvironment();
   persistDiagnostics();
+}
+
+function recordActivity(action, detail = {}) {
+  if (!diagnostics) return;
+  const activity = { at: new Date().toISOString(), action: String(action).slice(0, 80) };
+  if (typeof detail.hasSystemData === "boolean") activity.hasSystemData = detail.hasSystemData;
+  if (typeof detail.result === "string") activity.result = detail.result.slice(0, 40);
+  if (diagnostics.gameStartedAtMs !== null) activity.gameElapsedSeconds = Math.max(0, Math.round((Date.now() - diagnostics.gameStartedAtMs) / 1000));
+  if (action === "native-save-event") diagnostics.nativeSaveEvents += 1;
+  diagnostics.activities = [...diagnostics.activities, activity].slice(-8);
+  sampleDiagnostics();
 }
 
 function beginDiagnostics(game, threads) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-8",
+    appVersion: "20261028-9",
     emulatorVersion: game.ejsVersion || DEFAULT_EJS_VERSION,
     game: { id: game.id, title: game.title, core: game.core },
     userAgent: String(window.navigator?.userAgent || "").slice(0, 500),
     threads,
     phase: "loading",
     startedAtMs: Date.now(),
+    gameStartedAtMs: null,
+    gameElapsedSeconds: null,
+    nativeSaveEvents: 0,
+    activities: [],
     wasmHeapBytes: null,
     peakWasmHeapBytes: null,
     heapGrowthEvents: 0,
@@ -350,7 +367,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   }
 
   const dataPath = resolveDataPath(game);
-  if (typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game);
+  if (typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game, recordActivity);
 
   // Keep the player configuration intentionally close to the official EmulatorJS demo.
   window.EJS_player = "#game";
@@ -406,6 +423,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   window.EJS_onGameStart = () => {
     if (playerClosing) return;
     hideMessage();
+    if (diagnostics && diagnostics.gameStartedAtMs === null) diagnostics.gameStartedAtMs = Date.now();
     sampleDiagnostics("running");
     saveManager?.start();
     if (localObjectUrl) {
@@ -526,6 +544,7 @@ function shutdownPlayer(reason = "close") {
   diagnosticTimer = null;
   errorObserver.disconnect();
   sampleDiagnostics("closing");
+  recordActivity("player-close-request");
   const emulator = window.EJS_emulator;
   const module = emulator?.Module;
   const shouldSave = emulator?.started === true && !emulator.failedToStart;

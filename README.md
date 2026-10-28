@@ -67,7 +67,10 @@ game; closing it resumes only a game paused by this panel.
 - Game saves: use the game's own save menu first. The initial native write
   interval is 30 seconds. The panel can also request an immediate write, and
   closing the player flushes pending writes. A timestamp is shown only after
-  the filesystem reports success and a game save file exists.
+  an explicit manual/closing flush reports success and a game save file exists.
+  Native periodic saves use the existing IDBFS automatic persistence; Retro
+  Vault no longer schedules an additional forced flush for each native save
+  event. Their completion time is not inferred from the save event alone.
 - State slots: three per game, stored in IndexedDB with timestamps. States are
   captured only on manual actions, never on a timer. Saving, loading, and
   deleting use the visible panel; replacing or deleting an existing slot and
@@ -109,6 +112,15 @@ existing IndexedDB filesystem. State timestamps belong to the slot transaction.
 Validation: `node --test tests/player-stability.test.mjs`. The save tests use a
 deterministic transaction mock, not Safari or real game ROMs. Safari playback
 and per-core state compatibility still need device testing.
+
+For unexpected reloads, the diagnostic records `gameElapsedSeconds` separately
+from time spent waiting for the start tap or downloading files. It keeps the
+latest eight small activity records, including native save events and explicit
+flush starts/results. The reload notice shows the last recorded game elapsed
+time when the interrupted game matches the saved diagnostic. This is a last
+observation, not an exact crash timestamp or proof of a crash cause. Download
+the diagnostic before launching another game. The save panel is rendered only
+while open so periodic events do not rebuild hidden slot controls.
 - `docs/CORE_REFERENCE.md` - core/system reference
 - `coi-sw.js` - kept at the project root intentionally so its Service Worker scope can cover the whole app
 

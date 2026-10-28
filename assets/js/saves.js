@@ -6,8 +6,9 @@
   const storage = window.RetroSaveStorage;
 
   class SaveManager {
-    constructor(game) {
+    constructor(game, onActivity = () => {}) {
       this.game = game;
+      this.onActivity = (...args) => { try { onActivity(...args); } catch {} };
       this.gameKey = storage.identity(game);
       this.store = new storage.SaveStorage();
       this.slots = [];
@@ -94,7 +95,8 @@
       this.emulator?.on?.("saveSaveFiles", data => {
         if (this.closing || this.suppressSaveEvent) return;
         this.hasSystemData = !!(data?.byteLength || data?.size);
-        this.flushExistingSystem().catch(() => {});
+        // IDBFS already persists native writes. Do not schedule a second flush.
+        this.onActivity("native-save-event", { hasSystemData: this.hasSystemData });
       });
       try {
         const savedAt = window.localStorage.getItem("retro-vault-system-save:" + this.gameKey);
@@ -127,7 +129,7 @@
     }
 
     render() {
-      if (this.closing) return;
+      if (this.closing || !this.opened) return;
       this.elements["system-save-status"].textContent = this.systemSavedAt
         ? t("systemSavedAt", { date: this.formatDate(this.systemSavedAt) }) : t("systemNotSaved");
       const list = this.elements["save-slots"];
@@ -367,6 +369,7 @@
 
     async flushSystem() {
       if (!this.started || this.closing) return "not-needed";
+      this.onActivity("manual-save-request");
       this.suppressSaveEvent = true;
       try { this.emulator.gameManager.saveSaveFiles(); }
       finally { this.suppressSaveEvent = false; }
@@ -374,9 +377,14 @@
     }
 
     flushExistingSystem() {
-      if (this.systemFlush) { this.flushAgain = true; return this.systemFlush; }
+      if (this.systemFlush) {
+        this.flushAgain = true;
+        this.onActivity("save-flush-queued");
+        return this.systemFlush;
+      }
       const manager = this.emulator?.gameManager;
       if (!manager?.FS?.syncfs) return Promise.resolve("not-needed");
+      this.onActivity("save-flush-start");
       this.systemFlush = new Promise(resolve => {
         let finished = false;
         const done = result => {
@@ -395,6 +403,7 @@
             this.setStatus("systemSaveFailed", {}, true);
           }
           this.render();
+          this.onActivity("save-flush-end", { result });
           resolve(result);
         };
         const timeout = setTimeout(() => done("timed-out"), 1200);
