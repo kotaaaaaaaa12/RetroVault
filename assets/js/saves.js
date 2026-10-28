@@ -26,7 +26,12 @@
       for (const id of ["save-root", "save-manager-toggle", "save-manager", "save-manager-heading", "save-manager-close", "save-slots", "state-support", "system-save-status", "save-system-now", "save-manager-status", "save-confirm", "save-confirm-text", "save-confirm-yes", "save-confirm-no", "save-import", "save-current-backup", "save-legacy-import"]) {
         this.elements[id] = document.getElementById(id);
       }
-      this.elements["save-manager-toggle"].addEventListener("click", () => this.open());
+      this.elements["save-manager-toggle"].addEventListener("click", () => {
+        this.elements["save-manager-toggle"].blur();
+        this.emulator?.menu?.close?.();
+        this.open();
+      });
+      this.onFullscreenChange = () => this.updateSaveEntry();
       this.elements["save-manager-close"].addEventListener("click", () => this.close());
       this.elements["save-system-now"].addEventListener("click", () => this.run(async () => {
         const outcome = await this.flushSystem();
@@ -80,7 +85,12 @@
       // The native fullscreen element must contain the save controls as well.
       const host = this.emulator?.elements?.parent || document.body;
       host.appendChild(this.elements["save-root"]);
-      this.elements["save-manager-toggle"].hidden = false;
+      this.fullscreenHost = host;
+      this.toolbar = this.emulator?.elements?.menu;
+      if (this.toolbar) this.toolbar.appendChild(this.elements["save-manager-toggle"]);
+      document.addEventListener("fullscreenchange", this.onFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", this.onFullscreenChange);
+      this.updateSaveEntry();
       this.emulator?.on?.("saveSaveFiles", data => {
         if (this.closing || this.suppressSaveEvent) return;
         this.hasSystemData = !!(data?.byteLength || data?.size);
@@ -91,6 +101,13 @@
         if (savedAt && Number.isFinite(Date.parse(savedAt))) this.systemSavedAt = savedAt;
       } catch {}
       await this.refresh();
+    }
+
+    updateSaveEntry() {
+      const fullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+      const playerIsFullscreen = !!fullscreen &&
+        (fullscreen === this.fullscreenHost || fullscreen.contains?.(this.fullscreenHost));
+      this.elements["save-manager-toggle"].hidden = !this.started || this.closing || !this.toolbar || !playerIsFullscreen;
     }
 
     async refresh() {
@@ -402,6 +419,8 @@
       this.answer(false);
       this.pausedByPanel = false;
       this.elements["save-manager-toggle"].hidden = true;
+      document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", this.onFullscreenChange);
       this.elements["save-manager"].hidden = true;
       this.unsubscribe?.();
     }

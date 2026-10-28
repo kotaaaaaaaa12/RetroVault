@@ -59,8 +59,9 @@ Retrovault/
 
 ## Saves on this device
 
-Open **Saves** in the player header or the in-game corner button. The panel is
-also available inside the native fullscreen element. Opening it pauses a running
+Open **Saves** beside **Close** in the player header. In native fullscreen mode,
+open the EmulatorJS controls menu and choose **Saves** there. There is no
+persistent save button over the game canvas. Opening the panel pauses a running
 game; closing it resumes only a game paused by this panel.
 
 - Game saves: use the game's own save menu first. The initial native write

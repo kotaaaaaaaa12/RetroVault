@@ -503,7 +503,7 @@ async function saveEnvironment(options = {}) {
     started: true, paused: !!options.paused, ejs_version: '4.2.3',
     getCore: () => 'fceumm',
     getBaseFileName: () => 'Test Game',
-    elements: { parent: env.document.createElement('div') },
+    elements: { parent: env.document.createElement('div'), menu: env.document.createElement('div') },
     pause() { this.paused = true; calls.pauses += 1; },
     play() { this.paused = false; calls.plays += 1; },
     on(name, callback) { handlers.set(name, callback); },
@@ -780,4 +780,31 @@ test('expanded diagnostics remain bounded and downloadable through the launcher 
   assert.equal(app.elements.get('diagnostics-download').hidden, false);
   assert.equal(vm.runInContext('readDiagnostics().startMode', app.context), 'tap-in-player');
   await vm.runInContext('shutdownPlayer()', env.context);
+});
+
+test('the save entry stays out of the game canvas and appears only in the fullscreen controls menu', async () => {
+  const env = await saveEnvironment();
+  const toggle = env.elements.get('save-manager-toggle');
+  assert.equal(toggle.hidden, true);
+  assert.equal(env.emulator.elements.menu.contains(toggle), true);
+  assert.equal(env.elements.get('save-root').contains(toggle), false);
+  env.document.fullscreenElement = env.emulator.elements.parent;
+  env.document.dispatch('fullscreenchange');
+  assert.equal(toggle.hidden, false);
+  let closedMenu = 0;
+  env.emulator.menu = { close() { closedMenu += 1; } };
+  toggle.dispatch('click');
+  assert.equal(closedMenu, 1);
+  assert.equal(env.manager.opened, true);
+  env.manager.close();
+  env.document.fullscreenElement = null;
+  env.document.dispatch('fullscreenchange');
+  assert.equal(toggle.hidden, true);
+  env.document.webkitFullscreenElement = env.emulator.elements.parent;
+  env.document.dispatch('webkitfullscreenchange');
+  assert.equal(toggle.hidden, false);
+  env.manager.stop();
+  assert.equal(toggle.hidden, true);
+  assert.equal(env.document.handlers.get('fullscreenchange').length, 0);
+  assert.equal(env.document.handlers.get('webkitfullscreenchange').length, 0);
 });

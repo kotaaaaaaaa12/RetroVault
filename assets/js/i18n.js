@@ -148,7 +148,11 @@
     "releaseSixTitle": "Manual start and startup diagnostics",
     "releaseSixStart": "Replaced automatic startup with a Start Game tap inside the player.",
     "releaseSixLog": "Added bounded error names, stack traces, source locations, and relevant browser state to the diagnostic log.",
-    "releaseSixConsole": "Recorded recent runtime warnings and errors that the emulator handles internally, without suppressing permission errors."
+    "releaseSixConsole": "Recorded recent runtime warnings and errors that the emulator handles internally, without suppressing permission errors.",
+    "releaseSevenTitle": "Changelog fonts",
+    "releaseSevenFonts": "Loaded the same logo and interface fonts as the game library on the changelog page.",
+    "releaseEightTitle": "Save controls placement",
+    "releaseEightControls": "Removed the persistent save button over the game. Use Saves beside Close, or the EmulatorJS controls menu in fullscreen mode."
   },
   "ja": {
     "subtitle": "ゲームを選んでプレイ",
@@ -293,7 +297,11 @@
     "releaseSixTitle": "開始操作と起動時の診断",
     "releaseSixStart": "自動起動をやめ、プレイヤー内の「ゲームスタート」をタップして起動する形に変更しました。",
     "releaseSixLog": "診断ログに、上限つきのエラー名・スタック・発生位置と、関連するブラウザの状態を追加しました。",
-    "releaseSixConsole": "エミュレーター内部で処理される最近の警告やエラーも記録します。権限エラーは非表示にせず表示します。"
+    "releaseSixConsole": "エミュレーター内部で処理される最近の警告やエラーも記録します。権限エラーは非表示にせず表示します。",
+    "releaseSevenTitle": "更新履歴のフォント",
+    "releaseSevenFonts": "更新履歴ページでも、ゲーム一覧と同じロゴと画面のフォントを読み込むようにしました。",
+    "releaseEightTitle": "セーブボタンの配置",
+    "releaseEightControls": "ゲーム画面に重なる常駐セーブボタンを削除しました。通常時は「閉じる」の左、全画面時はEmulatorJSの操作メニューから開けます。"
   }
 };
   const nativeEn = {
