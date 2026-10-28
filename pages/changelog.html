@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-9">
-  <script src="/assets/js/i18n.js?v=20261028-9" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-9" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-10">
+  <script src="/assets/js/i18n.js?v=20261028-10" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-10" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -32,8 +32,15 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-10">
+      <div class="release-meta"><span>20261028-10</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-10" data-i18n="releaseTenTitle">Standalone NES comparison test</h2>
+      <ul>
+        <li data-i18n="releaseTenTest">Added a same-site NES test without the launcher, player wrapper, or additional save manager. Test logs are separate from normal player logs. This is a diagnostic comparison, not a confirmed crash fix.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-9">
-      <div class="release-meta"><span>20261028-9</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-9</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-9" data-i18n="releaseNineTitle">Save write cleanup and reload diagnostics</h2>
       <ul>
         <li data-i18n="releaseNineWrites">Removed extra forced filesystem writes after native automatic saves and stopped rebuilding the hidden save panel during play.</li>

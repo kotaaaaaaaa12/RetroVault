@@ -152,7 +152,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-9",
+    appVersion: "20261028-10",
     emulatorVersion: game.ejsVersion || DEFAULT_EJS_VERSION,
     game: { id: game.id, title: game.title, core: game.core },
     userAgent: String(window.navigator?.userAgent || "").slice(0, 500),

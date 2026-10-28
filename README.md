@@ -16,6 +16,33 @@ Recent internally handled runtime warnings and errors are also retained. No
 additional permissions are requested and no errors are hidden. Send the JSON
 with the affected system and game name to investigate the actual failing call.
 
+## Same-site NES comparison
+
+The footer links to `/pages/core-test.html`. Choose the same NES game that reloads
+in the normal player, tap **Start Game**, and play for three minutes. Then choose
+**Finish test** and **Save diagnostic log**. If the page reloads, download the
+previous log on that test page before starting another test.
+
+This page runs EmulatorJS 4.2.3 directly, with threads disabled, without an iframe,
+launcher code, player wrapper code, or the additional Retro Vault save manager.
+It retains native default save timing rather than the normal player's 30-second
+default. Test game names and native settings keys are separate from normal games. Only ordinary
+NES entries from the existing games.json are offered; custom loaders, patches,
+parent ROMs, BIOS configurations, and other systems are excluded.
+
+The bounded test log uses its own sessionStorage key and does not overwrite the
+normal player log. It samples only WebAssembly memory and metadata every ten
+seconds. A browser process termination can prevent the final sample. Neither a
+flat WASM heap nor an empty JavaScript error list establishes total process memory
+or the reason for a reload. A previous log may also result from normal navigation.
+
+This is a comparison across several integration differences, not an exact copy
+of the upstream demo or a confirmed Safari crash fix. Failure on both pages still
+needs further investigation; success here would narrow the affected integration.
+It uses the same existing EmulatorJS CDN as the normal player. No school filtering,
+proxy, or device policy settings are changed. Safari device playback remains
+untested in this environment.
+
 ## Project layout
 
 ```text

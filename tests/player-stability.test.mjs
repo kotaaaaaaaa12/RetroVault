@@ -6,6 +6,7 @@ import { MemoryIndexedDB } from './support/memory-indexeddb.mjs';
 
 const appSource = await readFile(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const playerSource = await readFile(new URL('../assets/js/player.js', import.meta.url), 'utf8');
+const coreTestSource = await readFile(new URL('../assets/js/core-test.js', import.meta.url), 'utf8');
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
 const savesSource = await readFile(new URL('../assets/js/saves.js', import.meta.url), 'utf8');
@@ -109,6 +110,7 @@ async function environment(source, options = {}) {
   };
   const context = vm.createContext({
     window, document, URL, URLSearchParams, Blob, File, TextEncoder, TextDecoder, console: options.console || console,
+    sessionStorage: window.sessionStorage, location: window.location, navigator: window.navigator,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id),
@@ -129,6 +131,52 @@ async function environment(source, options = {}) {
 test('launcher has no threading UI and its inline scripts compile', () => {
   assert.doesNotMatch(html, /threads-toggle|threads-status|thread-control|THREADS/);
   for (const [, source] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(source);
+});
+
+test('standalone NES comparison excludes custom loaders and preserves normal diagnostics', async () => {
+  const shared = storage({ 'retro-vault-diagnostics': 'normal-player-log' });
+  const env = await environment(coreTestSource, {
+    sessionStorage: shared,
+    games: [...games, { ...games[0], id: 2, dataPath: 'https://custom.example/data/' },
+      { ...games[0], id: 3, ejsVersion: 'nightly' }, { ...games[0], id: 4, core: 'snes' }]
+  });
+  assert.equal(env.elements.get('test-game').children.length, 1);
+  env.elements.get('test-game').value = '0';
+  env.elements.get('test-start').click();
+  assert.equal(env.window.EJS_startOnLoaded, false);
+  assert.equal(env.window.EJS_threads, false);
+  assert.equal(env.window.EJS_defaultOptions['save-save-interval'], undefined);
+  assert.equal(env.window.EJS_gameUrl, 'https://retro.example/data/roms/Test%20Game.nes');
+  assert.notEqual(env.window.EJS_gameName, games[0].title);
+  assert.equal(env.document.body.children.at(-1).src, 'https://cdn.emulatorjs.org/4.2.3/data/loader.js');
+  let paused = 0;
+  env.window.EJS_emulator = { Module: { HEAPU8: new Uint8Array(128) }, pause() { paused++; } };
+  env.window.EJS_ready();
+  env.window.EJS_onGameStart();
+  for (let i = 0; i < 9; i++) env.window.dispatch('error', { error: new Error('sample error') });
+  env.elements.get('test-finish').click();
+  const log = JSON.parse(shared.getItem('retro-vault-core-test-diagnostics'));
+  assert.equal(log.mode, 'standalone-core-test');
+  assert.equal(log.phase, 'finished');
+  assert.equal(log.wasmHeapBytes, 128);
+  assert.equal(log.errors.length, 4);
+  assert.equal(paused, 1);
+  assert.equal(shared.getItem('retro-vault-diagnostics'), 'normal-player-log');
+  assert.equal(env.elements.get('test-download').hidden, false);
+  const page = await readFile(new URL('../pages/core-test.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(page, /<iframe|src="[^\"]*(?:app|player|saves|save-storage)\.js/);
+});
+
+test('standalone comparison keeps a previous report until a new test starts', async () => {
+  const old = JSON.stringify({ mode: 'standalone-core-test', gameElapsedSeconds: 63 });
+  const shared = storage({ 'retro-vault-core-test-diagnostics': old });
+  const env = await environment(coreTestSource, { sessionStorage: shared });
+  assert.equal(shared.getItem('retro-vault-core-test-diagnostics'), old);
+  assert.equal(env.elements.get('test-download').hidden, false);
+  assert.match(env.elements.get('test-status').textContent, /63 seconds/);
+  env.elements.get('test-game').value = '0';
+  env.elements.get('test-start').click();
+  assert.equal(JSON.parse(shared.getItem('retro-vault-core-test-diagnostics')).gameElapsedSeconds, null);
 });
 
 test('old site preference cannot turn threads on for a normal game or local ROM', async () => {
