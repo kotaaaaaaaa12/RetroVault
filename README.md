@@ -110,7 +110,8 @@ Safari phone-number detection is disabled on HTML pages.
 ## Add and edit games
 
 1. Open `/admin/` and choose **Add game**.
-2. Choose a ROM to upload. Known extensions suggest a system; ambiguous extensions
+2. Choose a ROM to upload. ROM and thumbnail pickers support multiple selection.
+   Known extensions suggest a system; ambiguous extensions
    leave system selection to you. An explicitly chosen system or core is retained.
 3. Enter the title and choose the system. The core defaults to that system's core,
    with supported alternate cores available in the dropdown.
@@ -118,6 +119,18 @@ Safari phone-number detection is disabled on HTML pages.
    resized to at most 1024 pixels per side and encoded as WebP in the browser.
 5. Select **Visible in library** and save. Required referenced files must have
    completed uploading before a game can become visible.
+
+Multiple files upload one at a time. The first successful upload is selected for
+the current game; later uploads remain in the uploaded-file dropdowns for other
+games. Each catalog entry still uses one ROM and one thumbnail. Uploading multiple
+ROMs does not automatically create or publish game entries, and thumbnails are
+not matched to ROMs by filename. Choose the corresponding files and save each game.
+An existing game's ID, title, and system are retained during a batch.
+
+The queue displays each file's result and the current file number and progress.
+An individual failure does not discard completed files or stop later files.
+Cancel stops the current upload and remaining queue; completed uploads stay in
+storage. File sizes use B, KiB, MiB, or GiB so small files do not round to zero.
 
 ROM/BIOS/patch files are sent in 16 MiB parts, sequentially, with bounded retries
 for a failed part. The Worker streams each part to R2. Progress and cancellation

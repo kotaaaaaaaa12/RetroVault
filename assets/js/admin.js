@@ -1,4 +1,5 @@
 import { SYSTEMS, detectSystem, systemFor } from './systems.js';
+import { formatFileSize as bytes } from './file-size.js';
 
 const i18n = window.RetroI18n;
 const t = (key, values) => i18n.t(key, values);
@@ -13,9 +14,10 @@ let jsonDirty = false;
 let uploadController = null;
 let autoSystem = true;
 let statusMessage = null;
+let uploadResults = [];
+let uploadProgress = null;
 const fields = [ ['rom', 'rom', 'adminRom'], ['thumbnail', 'thumbnail', 'adminThumbnail'], ['bios', 'bios', 'adminBios'], ['patch', 'patch', 'adminPatch'] ];
 const clean = game => Object.fromEntries(Object.entries(game).filter(([key]) => !['updatedAt', 'revision'].includes(key)));
-const bytes = size => (size / (1024 * 1024)).toFixed(1) + ' MiB';
 
 function show(key, values = {}, error = false) {
   statusMessage = { key, values, error };
@@ -173,38 +175,103 @@ async function thumbnail(file) {
     return result;
   } finally { URL.revokeObjectURL(url); }
 }
-async function upload(field, kind, original) {
-  if (busy) return;
-  setBusy(true); uploadController = new AbortController();
+function renderUploadResults() {
+  element('upload-results').hidden = !uploadResults.length;
+  const root = element('upload-results-list'); root.replaceChildren();
+  for (const result of uploadResults) {
+    const row = document.createElement('li'); row.className = 'upload-result'; row.dataset.state = result.state;
+    const state = t({ waiting: 'adminUploadWaiting', uploading: 'adminUploading', complete: 'adminFileReady', failed: 'adminUploadFailed', cancelled: 'adminUploadSkipped' }[result.state]);
+    row.textContent = `${result.name} · ${bytes(result.size)} · ${state}` + (result.error ? ' — ' + t(result.error) : '');
+    root.appendChild(row);
+  }
+  if (uploadProgress) element('upload-label').textContent = t('adminUploadBatchProgress', uploadProgress);
+}
+async function transferFile(kind, original, signal, progress) {
   let created;
+  let completed = false;
   try {
+    signal.throwIfAborted();
     const file = kind === 'thumbnail' ? await thumbnail(original) : original;
+    signal.throwIfAborted();
     created = await api('/api/admin/uploads', 'POST', { kind, name: file.name, size: file.size });
-    element('upload-progress').hidden = false;
     for (let part = 1; part <= created.parts; part++) {
-      if (uploadController.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+      signal.throwIfAborted();
       const body = file.slice((part - 1) * created.partBytes, Math.min(part * created.partBytes, file.size));
       for (let attempt = 0; ; attempt++) {
-        try { await api(`/api/admin/uploads/${created.id}/parts/${part}`, 'PUT', body, { signal: uploadController.signal }); break; }
-        catch (error) { if (attempt >= 2 || uploadController.signal.aborted) throw error; await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1))); }
+        try { await api(`/api/admin/uploads/${created.id}/parts/${part}`, 'PUT', body, { signal }); break; }
+        catch (error) { if (attempt >= 2 || signal.aborted || ['loginRequired', 'invalidSession'].includes(error.message)) throw error; await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1))); }
       }
-      const percent = Math.round(part / created.parts * 100);
-      element('upload-meter').value = percent;
-      element('upload-label').textContent = t('adminUploadProgress', { name: original.name, percent });
+      progress(part / created.parts);
     }
+    signal.throwIfAborted();
+    // Finish this commit before honoring cancellation of the remaining queue.
     await api('/api/admin/uploads/' + created.id + '/complete', 'POST', {});
-    model[field] = created.key; dirty = true;
-    if (kind === 'rom' && !model.id) {
-      const system = detectSystem(original.name);
-      if (system && autoSystem) { model.system = model.core = system; delete model.coreOverride; element('game-system').value = system; coreOptions(); }
-      if (!model.title) { model.title = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
-    }
-    await refresh(); syncJson(); preview(); show('adminUploadDone');
+    completed = true;
+    return { key: created.key, size: file.size };
   } catch (error) {
-    if (created) { try { await api('/api/admin/uploads/' + created.id, 'DELETE'); } catch {} }
-    if (error.name === 'AbortError') show('adminUploadCancelled'); else problem(error);
+    if (created && !completed) { try { await api('/api/admin/uploads/' + created.id, 'DELETE'); } catch {} }
+    throw error;
+  }
+}
+async function upload(field, kind, originals) {
+  if (busy || !originals.length) return;
+  setBusy(true); uploadController = new AbortController();
+  statusMessage = null; element('admin-status').hidden = true;
+  const signal = uploadController.signal;
+  uploadResults = originals.map(file => ({ name: file.name, size: file.size, state: 'waiting' }));
+  uploadProgress = null;
+  element('upload-progress').hidden = false;
+  element('upload-meter').value = 0;
+  element('cancel-upload').disabled = false;
+  renderUploadResults();
+  let selected = false;
+  let completed = 0;
+  let failed = 0;
+  try {
+    for (let index = 0; index < originals.length; index++) {
+      if (signal.aborted) break;
+      const original = originals[index];
+      const result = uploadResults[index];
+      const progress = fraction => {
+        element('upload-meter').value = (index + fraction) / originals.length * 100;
+        uploadProgress = { index: index + 1, total: originals.length, name: original.name, percent: Math.round(fraction * 100) };
+        element('upload-label').textContent = t('adminUploadBatchProgress', uploadProgress);
+      };
+      result.state = 'uploading'; progress(0); renderUploadResults();
+      try {
+        const stored = await transferFile(kind, original, signal, progress);
+        result.state = 'complete'; result.size = stored.size; completed++;
+        // A batch never replaces the current selection with every later file.
+        if (!selected) {
+          selected = true; model[field] = stored.key; dirty = true;
+          if (kind === 'rom' && !model.id) {
+            const system = detectSystem(original.name);
+            if (system && autoSystem) { model.system = model.core = system; delete model.coreOverride; element('game-system').value = system; coreOptions(); }
+            if (!model.title) { model.title = original.name.replace(/\.[^.]+$/, ''); element('game-title').value = model.title; }
+          }
+          syncJson(); preview();
+        }
+      } catch (error) {
+        if (signal.aborted || error.name === 'AbortError') result.state = 'cancelled';
+        else {
+          result.state = 'failed'; failed++;
+          result.error = t(error.message) === error.message ? 'serverError' : error.message;
+          if (['loginRequired', 'invalidSession'].includes(error.message)) uploadController.abort();
+        }
+      }
+      renderUploadResults();
+    }
+    for (const result of uploadResults) if (result.state === 'waiting') result.state = 'cancelled';
+    renderUploadResults();
+    await refresh(); syncJson(); preview();
+    if (signal.aborted) show('adminUploadBatchCancelled', { completed, total: originals.length });
+    else if (failed) show('adminUploadBatchFinished', { completed, failed }, true);
+    else if (originals.length === 1) show('adminUploadDone');
+    else show('adminUploadBatchDone', { count: completed });
+  } catch (error) {
+    problem(error);
   } finally {
-    uploadController = null; element('upload-progress').hidden = true; setBusy(false);
+    uploadController = null; uploadProgress = null; element('upload-progress').hidden = true; setBusy(false);
     for (const [name] of fields) element('upload-' + name).value = '';
   }
 }
@@ -213,13 +280,15 @@ for (const [field, kind, key] of fields) {
   const label = document.createElement('div'); label.className = 'file-control'; const title = document.createElement('span'); title.dataset.i18n = key; title.textContent = t(key);
   const input = document.createElement('input'); input.type = 'file'; input.id = 'upload-' + field;
   input.hidden = true;
+  input.multiple = kind === 'rom' || kind === 'thumbnail';
   if (kind === 'thumbnail') input.accept = '.png,.jpg,.jpeg,.webp';
-  input.addEventListener('change', () => { if (input.files?.[0]) upload(field, kind, input.files[0]); });
+  input.addEventListener('change', () => { if (input.files?.length) upload(field, kind, Array.from(input.files)); });
   const select = document.createElement('select'); select.id = 'existing-' + field;
   select.setAttribute('aria-label', t('adminChooseExisting', { name: t(key) }));
   select.addEventListener('change', () => { if (select.value) model[field] = select.value; else delete model[field]; dirty = true; element('current-' + field).textContent = files.find(file => file.key === model[field])?.name || model[field] || t('adminNoFile'); syncJson(); preview(); select.blur(); });
   const current = document.createElement('small'); current.id = 'current-' + field;
-  const choose = makeButton('adminChooseUpload', () => input.click()); choose.dataset.i18n = 'adminChooseUpload';
+  const chooseKey = input.multiple ? 'adminChooseUploads' : 'adminChooseUpload';
+  const choose = makeButton(chooseKey, () => input.click()); choose.dataset.i18n = chooseKey;
   label.append(title, choose, input, select, current); group.appendChild(label); element('file-fields').appendChild(group);
 }
 element('game-title').addEventListener('input', event => { model.title = event.target.value; dirty = true; syncJson(); });
@@ -274,7 +343,10 @@ const language = element('language-select'); language.value = i18n.mode;
 language.addEventListener('change', () => { i18n.setLanguage(language.value); language.blur(); });
 i18n.onChange(() => {
   language.value = i18n.mode; systemOptions(); renderGames(); renderFiles(); fileChoices();
+  renderUploadResults();
   element('editor-heading').textContent = t(model.id ? 'adminEdit' : 'adminAdd');
+  element('game-identity').textContent = model.id ? t('adminIdentity', { id: model.id, revision: model.revision }) : t('adminNewIdentity');
+  for (const [field, , key] of fields) element('existing-' + field).setAttribute('aria-label', t('adminChooseExisting', { name: t(key) }));
   if (statusMessage) show(statusMessage.key, statusMessage.values, statusMessage.error);
 });
 window.addEventListener('beforeunload', event => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } });
