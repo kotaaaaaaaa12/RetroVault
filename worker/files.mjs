@@ -58,9 +58,13 @@ export async function removeFile(env, id) {
   await env.DB.batch([env.DB.prepare('DELETE FROM upload_parts WHERE file_id=?').bind(id), env.DB.prepare('DELETE FROM files WHERE id=?').bind(id)]);
   return { deleted: true };
 }
-export async function serveFile(request, env, key, expectedKind) {
+export async function serveFile(request, env, key, expectedKind, publicOnly = false) {
   const file = await env.DB.prepare("SELECT * FROM files WHERE key=? AND status='ready'").bind(key).first();
   if (!file || (expectedKind && !expectedKind.includes(file.kind))) fail('fileNotFound', 404);
+  if (publicOnly) {
+    const published = await env.DB.prepare("SELECT 1 FROM games,json_each(games.config) ref WHERE games.status='ready' AND ref.key IN ('rom','thumbnail','bios','patch','gameParent') AND ref.value=? LIMIT 1").bind(key).first();
+    if (!published) fail('fileNotFound', 404);
+  }
   const base = { 'Cache-Control': 'private, no-store', 'Content-Type': file.mime, 'Accept-Ranges': 'bytes', 'X-Content-Type-Options': 'nosniff' };
   if (request.method === 'HEAD') return new Response(null, { headers: { ...base, 'Content-Length': String(file.size) } });
   const rangeHeader = request.headers.get('Range');

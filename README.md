@@ -1,6 +1,6 @@
 # Retro Vault
 
-A private EmulatorJS library with browser saves and password-protected management,
+A public EmulatorJS library with browser saves and password-protected management,
 served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Deploy from GitHub with Workers Builds
@@ -27,7 +27,9 @@ initialized idempotently on the first API request.
 
 Enable R2 on the Cloudflare account if it has not been activated yet. Use Standard
 storage. The bucket should remain private: do not enable an r2.dev URL or a public
-bucket custom domain. This project streams authenticated reads through the Worker.
+bucket custom domain. The Worker streams files used by published games without a
+login. Draft, trashed, and unused files require an administrator session unless
+another published game references the same file.
 
 ## Set the administrator password once
 
@@ -51,7 +53,9 @@ Do not put the password in `wrangler.jsonc`, GitHub, or public JavaScript.
 Only the Worker reads the secret. The browser submits the entered password over
 HTTPS; authentication responses never return the configured password.
 
-Both the game library and `/admin/` use this login. The login session lasts up to
+Only `/admin/`, its management APIs, and the NES comparison test require this
+login. The game library and player open without signing in, including before an
+administrator password is configured. The login session lasts up to
 12 hours. Sessions use Secure, HttpOnly, SameSite=Strict cookies; write APIs require
 a session CSRF token and same-origin requests. Repeated login failures are limited.
 Changing the password invalidates existing sessions.
@@ -87,14 +91,16 @@ The dry run verifies build and bundling; it does not deploy to your account.
 
 ## Routes and interface
 
-- `/`: authenticated game library, search, system filters, local ROM opening.
+- `/`: public game library, search, system filters, local ROM opening.
+- `/pages/player.html`: public game player.
 - `/admin/`: add/edit games, upload ROMs, thumbnails, BIOS files and patches,
   select a system and core, manage drafts and trash, import/export JSON.
 - `/admin/core-test.html`: authenticated NES release comparison, linked from
   management. The old `/pages/core-test.html` route redirects here after login.
 - `/pages/changelog.html`: release history and official EmulatorJS credit.
-- `/api/games`: authenticated compatible JSON list of visible games.
-- `/data/roms/…`, `/data/thumbs/…`, `/data/bios/…`: authenticated R2 file reads.
+- `/api/games`: public compatible JSON list of visible games; drafts and trash are excluded.
+- `/data/roms/…`, `/data/thumbs/…`, `/data/bios/…`: public reads for files used by
+  published games. Other completed files require an administrator session.
 
 The main footer contains Changelog, the official EmulatorJS link, and the existing
 diagnostic-log download when a log is available. Management is linked from the
@@ -187,8 +193,8 @@ on this Worker when ready. The source configuration deliberately does not take
 over or delete the existing Pages project or domain automatically.
 
 Code deployment does not remove ROMs already committed to GitHub or its history.
-After confirming the private migration and backups, remove those public copies
-and review history separately. Hosting privately does not grant distribution rights.
+After confirming the R2 migration and backups, remove those GitHub copies
+and review history separately.
 
 ## Files and storage
 

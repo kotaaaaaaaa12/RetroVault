@@ -12,15 +12,15 @@ async function route(request, env) {
   try { path = decodeURIComponent(url.pathname); } catch { fail('notFound', 404); }
   const get = request.method === 'GET' || request.method === 'HEAD';
   if (path === '/admin/login' || path === '/admin/login.html') return env.ASSETS.fetch(new Request(new URL('/admin/login.html', url), request));
-  const protectedPage = path === '/' || path === '/index.html' || path.startsWith('/admin/') || path === '/admin' || path === '/pages/player.html' || path === '/pages/core-test.html';
+  const protectedPage = path.startsWith('/admin/') || path === '/admin' || path === '/pages/core-test.html';
   const api = path.startsWith('/api/') || path.startsWith('/data/') || path === '/games.json';
   if (api || protectedPage) await initialize(env.DB);
   if (protectedPage) {
     if (!await session(request, env)) return redirect(request, path + url.search);
     if (path === '/pages/core-test.html') return Response.redirect(new URL('/admin/core-test.html' + url.search, url), 303);
     if (path === '/admin' || path === '/admin/') return env.ASSETS.fetch(new Request(new URL('/admin/index.html', url), request));
-    if (path === '/') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
   }
+  if (path === '/' && get) return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
   if (path === '/api/auth/login' && request.method === 'POST') return login(request, env);
   if (path === '/api/auth/session' && get) {
     const current = await authorize(request, env);
@@ -32,14 +32,12 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': `${cookieName}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0` });
   }
   if ((path === '/api/games' || path === '/data/games.json' || path === '/games.json') && get) {
-    await authorize(request, env);
     return json((await allGames(env)).filter(game => game.status === 'ready').map(({ revision, status, updatedAt, ...game }) => game));
   }
   if (path.startsWith('/data/') && get) {
-    await authorize(request, env);
     const match = /^\/data\/(roms|thumbs|bios)\/(.+)$/.exec(path);
     if (!match) fail('fileNotFound', 404);
-    return serveFile(request, env, match[2], match[1] === 'thumbs' ? ['thumbnail'] : match[1] === 'bios' ? ['bios'] : ['rom', 'patch']);
+    return serveFile(request, env, match[2], match[1] === 'thumbs' ? ['thumbnail'] : match[1] === 'bios' ? ['bios'] : ['rom', 'patch'], !await session(request, env));
   }
   if (path.startsWith('/api/admin/')) {
     const current = await authorize(request, env, !get);

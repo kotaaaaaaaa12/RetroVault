@@ -28,15 +28,48 @@ async function upload(env, auth, kind = 'rom', name = 'game.nes', bytes = new Ui
   return record;
 }
 
-test('public login is available but the catalog, admin, legacy test, and file APIs require authentication', async () => {
+test('the library and player open publicly while management and the comparison test require authentication', async () => {
   const env = environment();
-  assert.equal((await call(env, '/admin/login')).status, 200);
-  for (const path of ['/', '/index.html', '/admin/', '/admin/index.html', '/admin/core-test.html', '/pages/core-test.html', '/pages/%63ore-test.html', '/pages/player.html']) {
+  delete env.ADMIN_PASSWORD;
+  for (const path of ['/', '/index.html', '/pages/player.html', '/pages/changelog.html', '/admin/login']) assert.equal((await call(env, path)).status, 200, path);
+  for (const path of ['/admin/', '/admin/index.html', '/admin/core-test.html', '/pages/core-test.html', '/pages/%63ore-test.html']) {
     const response = await call(env, path);
     assert.equal(response.status, 303, path);
     assert.ok(response.headers.get('Location').includes('/admin/login'));
   }
-  for (const path of ['/api/games', '/data/games.json', '/api/admin/games', '/api/admin/files', '/data/roms/private.nes']) assert.equal((await call(env, path)).status, 401, path);
+  for (const path of ['/api/games', '/data/games.json', '/games.json']) assert.deepEqual(await (await call(env, path)).json(), [], path);
+  for (const path of ['/api/admin/games', '/api/admin/files', '/api/admin/export', '/api/auth/session']) assert.equal((await call(env, path)).status, 401, path);
+  assert.equal((await call(env, '/data/roms/private.nes')).status, 404);
+});
+
+test('anonymous visitors can read published game files but drafts and unused uploads remain restricted', async () => {
+  const env = environment(); const auth = await loggedIn(env);
+  const rom = await upload(env, auth);
+  const thumb = await upload(env, auth, 'thumbnail', 'cover.png');
+  const bios = await upload(env, auth, 'bios', 'used.bin');
+  const patch = await upload(env, auth, 'patch', 'game.ips');
+  const parent = await upload(env, auth, 'rom', 'parent.nes');
+  const unused = await upload(env, auth, 'bios', 'unused.bin');
+  const file = '/data/roms/' + rom.key;
+  assert.equal((await call(env, file)).status, 404);
+  assert.equal((await call(env, file, 'GET', undefined, auth)).status, 200);
+  let game = await (await call(env, '/api/admin/games', 'POST', { title: 'Public game', core: 'nes', rom: rom.key, thumbnail: thumb.key, bios: bios.key, patch: patch.key, gameParent: parent.key, status: 'draft' }, auth)).json();
+  assert.equal((await call(env, file)).status, 404);
+  game = await (await call(env, '/api/admin/games/' + game.id, 'PUT', { ...game, status: 'ready' }, auth)).json();
+  const list = await (await call(env, '/api/games')).json();
+  assert.equal(list.length, 1); assert.equal(list[0].id, game.id);
+  assert.equal((await call(env, file)).status, 200);
+  assert.equal((await call(env, file, 'HEAD')).headers.get('Content-Length'), '4');
+  assert.equal((await call(env, file, 'GET', undefined, {}, { Range: 'bytes=1-2' })).status, 206);
+  assert.equal((await call(env, '/data/thumbs/' + thumb.key)).status, 200);
+  for (const path of ['/data/bios/' + bios.key, '/data/roms/' + patch.key, '/data/roms/' + parent.key]) assert.equal((await call(env, path)).status, 200, path);
+  assert.equal((await call(env, '/data/bios/' + unused.key)).status, 404);
+  for (const [path, method, body] of [['/api/admin/games', 'POST', { title: 'Unauthorized' }], ['/api/admin/games/' + game.id, 'PUT', game], ['/api/admin/games/' + game.id, 'DELETE', { revision: game.revision }], ['/api/admin/uploads', 'POST', { kind: 'rom', name: 'bad.nes', size: 4 }], ['/api/admin/import', 'POST', []]]) {
+    assert.equal((await call(env, path, method, body)).status, 401, path);
+  }
+  await call(env, '/api/admin/games/' + game.id + '/trash', 'POST', { revision: game.revision }, auth);
+  assert.equal((await call(env, file)).status, 404);
+  assert.equal((await (await call(env, '/api/games')).json()).length, 0);
 });
 
 test('login fails closed without a password secret and enforces origin, password, and logout checks', async () => {
