@@ -16,6 +16,8 @@ EmulatorJS/
 │   └── js/
 │       ├── app.js
 │       ├── player.js
+│       ├── i18n.js
+│       ├── changelog.js
 │       └── coi.js
 ├── data/
 │   ├── games.json
@@ -23,7 +25,8 @@ EmulatorJS/
 │   ├── thumbs/
 │   └── bios/
 ├── pages/
-│   └── player.html
+│   ├── player.html
+│   └── changelog.html
 └── docs/
     └── CORE_REFERENCE.md
 ```
@@ -32,6 +35,7 @@ EmulatorJS/
 - `assets/css/` - all stylesheets
 - `assets/js/` - launcher, player and cross-origin-isolation scripts
 - `pages/player.html` - isolated EmulatorJS iframe document
+- `pages/changelog.html` - localized site release history, linked from the footer
 - `data/games.json` - game database
 - `data/roms/` - your legally obtained game files
 - `data/thumbs/` - thumbnail files
@@ -55,6 +59,11 @@ Each game needs a unique positive integer `id`.
 
 Optional fields:
 
+These fields are part of Retro Vault's own game database format. The player
+reads them and sets the corresponding EmulatorJS options; EmulatorJS does not
+read this JSON file itself. `ejsVersion` is already supported by
+`resolveDataPath(game)` in `assets/js/player.js`.
+
 ```json
 {
   "threads": true,
@@ -69,7 +78,41 @@ Optional fields:
 }
 ```
 
-`threads` overrides the site-wide Threads toggle for that one game. If omitted, the site-wide setting is used.
+`threads` sets the threading policy for one game. Regular cores default to `false`; cores that require threads opt in automatically when the browser supports them. An explicit value overrides that default.
+
+### Nintendo 3DS example
+
+Add this object to the existing array in `data/games.json`. Use a unique ID:
+
+```json
+{
+  "id": 301,
+  "title": "Example 3DS Game",
+  "rom": "example.3ds",
+  "core": "3ds",
+  "thumbnail": "example.png",
+  "ejsVersion": "nightly"
+}
+```
+
+Place the ROM at `data/roms/example.3ds` and the thumbnail at
+`data/thumbs/example.png`. For database entries, explicitly set
+`ejsVersion` to `nightly`; the local ROM picker adds that setting automatically.
+The `3ds` and `azahar` core names are recognized by Retro Vault. Both require
+threads, which the launcher enables when shared memory is available. Do not set
+`threads` to `false` for these cores.
+
+Data source precedence is `dataPath`, then a valid `ejsVersion`, then the pinned
+default (`4.2.3`). Remove an old `dataPath` override if you want `ejsVersion` to
+select the CDN version. Selecting the nightly loader is not a game compatibility
+test; Nintendo 3DS gameplay on Safari has not been verified.
+
+## Changelog
+
+The footer links to `/pages/changelog.html`, which lists this site's cumulative
+changes and follows the saved interface language. Add release entries there and
+their translations in `assets/js/i18n.js` when shipping another update. Retro
+Vault release identifiers are separate from EmulatorJS version numbers.
 
 ## Local ROMs
 
@@ -101,7 +144,11 @@ Multi-file disc games can still require a BIOS and/or a packaged disc set. A sin
 
 ## Threads
 
-Threads are enabled by default when `SharedArrayBuffer` is available. EmulatorJS requires cross-origin isolation for threaded cores. This project includes a same-origin Service Worker helper for static hosts such as GitHub Pages. Hosts that allow custom headers should preferably send these headers directly:
+The launcher has no Threads switch or thread status labels. NES, SNES, and other regular cores start with threads disabled, regardless of the old site preference. Existing per-game EmulatorJS thread overrides are removed before launch without changing saves, controls, cheats, or other settings. The emulator's own settings menu remains available.
+
+PSP, DOSBox Pure, and experimental 3DS cores opt in only because this project treats them as threaded-only. An explicit `threads` field in `games.json` overrides that policy. Unsupported browsers show an error for those cores instead of silently trying an incompatible mode.
+
+Threaded cores still require cross-origin isolation. Cloudflare Pages should send these headers directly:
 
 ```text
 Cross-Origin-Opener-Policy: same-origin
@@ -161,3 +208,46 @@ The Pages output directory must be the directory containing `index.html`, `_head
 - `version.txt` identifies this deployment as `retro-vault-cloudflare-v3-20260901`.
 - `index.html` unregisters legacy `coi-sw.js` service workers left by older builds.
 - Threads should come from the `_headers` COOP/COEP response headers, not from a service worker.
+
+## Player stability update: 2026-10-28
+
+- Removed the launcher Threads switch, status observer, and old site preference.
+- Direct player URLs default to threads disabled unless `threads=1` is supplied.
+- Only the launcher CLOSE button dismisses the player. Backdrop clicks, Escape, and generic emulator exit messages no longer return to the game list.
+- Emulator errors, unhandled exceptions, and WebGL context loss are shown inside the player. EmulatorJS 4.2.3's actual exit event is observed as well as compatibility callbacks.
+- A session marker reports a page reload during a game. Browser process termination cannot be prevented or diagnosed from JavaScript alone.
+- Updated asset versions so browsers request the changed JavaScript and stylesheets.
+
+To apply the overlay, extract its contents into the existing repository root and overwrite matching files. ROMs, thumbnails, BIOS files, and games.json are not included or changed. Deploy through the existing Cloudflare Pages workflow. This update does not require a build command.
+
+## Internationalization update: 2026-10-28
+
+This cumulative overlay includes every file and behavior from the previous threading and player-stability overlay.
+
+- The launcher language control provides Auto, English, and Japanese. Auto uses the browser's preferred language. The selected mode is saved on the device.
+- Static text, accessibility labels, system names, search, filters, local-ROM selection, counters, startup errors, runtime errors, and reload notices use shared message dictionaries.
+- Language changes update the launcher and active player without restarting a running game. Filters and local-ROM system selections are retained.
+- EmulatorJS 4.2.3 calls its Japanese locale `ja-JA`, not `ja-JP`. The player now uses the correct identifier and supplies the complete bundled dictionary through an object URL. No additional translation service is used.
+- The native dictionary extends the upstream Japanese translations with missing standard menu labels and common FCEUmm/Snes9x core settings. Game titles, technical names, original license text, and text drawn by ROMs remain their original content.
+- Unknown JavaScript failures show translated guidance; their original technical messages remain in the developer console.
+- Japanese controls use a system font and adjusted sizing. The language selector releases pointer focus after selection.
+
+Apply this ZIP directly over the repository root; the previous ZIP does not need to be applied separately. Existing ROM, BIOS, thumbnail, and game database files are not replaced. Then redeploy through the existing Cloudflare Pages setup.
+
+Run the regression checks with `node --test tests/player-stability.test.mjs`. These checks validate locale selection, native dictionary delivery, live switching, and the retained threading and player-close behavior. They do not constitute a Safari device playback test.
+
+## Memory and lifecycle update: 2026-10-28
+
+This cumulative overlay retains the complete threading, player-stability, and internationalization updates.
+
+- Production mode replaces the always-on EmulatorJS debug setting. EmulatorJS 4.2.3 enables its core cache in this mode and avoids verbose runtime logging.
+- The game library, thumbnails, header animations, and footer are hidden while a game is open. The active player uses an opaque background without backdrop blur or wrapper shadows.
+- Closing uses a bounded stop handshake. The player pauses the core, requests SRAM saving, waits briefly for filesystem persistence, closes known audio contexts, reduces the canvas to 1 x 1, disconnects its translation observer, clears its timers, and revokes owned object URLs. The launcher then unloads the iframe. A stalled player cannot block closing indefinitely.
+- The shutdown path avoids calling a nonexistent `emulator.exit()` method and prevents the native beforeunload path from resetting an already-stopped core. This does not delete save data or disable normal save features.
+- A backgrounded game is paused and resumes when visible again; a game that was paused manually remains paused.
+- Local-ROM File references are released after the core starts. Runtime translation reuses its dictionary lookup entries and does not traverse an entire subtree for an attribute-only mutation.
+- A bounded diagnostic record samples the core's WebAssembly heap length every 10 seconds. It never copies the heap or captures game frames. The latest session record remains in sessionStorage after a reload, subject to the browser's storage behavior.
+- After a session, the footer offers **Save diagnostic log**. If Safari reloads the page again, save this JSON before starting another game; a new session replaces the previous record. The log includes game/core metadata, browser user agent, last sampled WebAssembly heap size and growth count, lifecycle phase, and up to four recent errors. Nothing is uploaded automatically.
+- The EmulatorJS footer credit links to https://emulatorjs.org/ in a new tab.
+
+The recorded heap size is only the core's WebAssembly linear memory. It does not measure total Safari memory, JavaScript allocations, audio allocations, compositor memory, or GPU memory. A Safari process termination can prevent JavaScript from receiving an error or writing a final sample. See `docs/MEMORY-NOTES.md` for the investigation, sources, and limits.

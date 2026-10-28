@@ -161,90 +161,6 @@ button {
   transform: translateY(1px);
 }
 
-.thread-control {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  min-height: 38px;
-  padding: 0 0.7rem;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.switch-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.48rem;
-  color: var(--text);
-  cursor: pointer;
-  user-select: none;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 0.47rem;
-}
-
-.switch-row input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.switch {
-  position: relative;
-  width: 34px;
-  height: 18px;
-  border: 1px solid var(--muted);
-  background: #09090d;
-  transition: 140ms ease;
-}
-
-.switch::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 10px;
-  height: 10px;
-  background: var(--muted);
-  transition: 140ms ease;
-}
-
-.switch-row input:checked + .switch {
-  border-color: var(--success);
-}
-
-.switch-row input:checked + .switch::after {
-  transform: translateX(16px);
-  background: var(--success);
-  box-shadow: 0 0 10px rgba(101, 231, 164, 0.45);
-}
-
-.switch-row input:focus-visible + .switch {
-  outline: 2px solid var(--accent-2);
-  outline-offset: 2px;
-}
-
-.switch-row input:disabled + .switch,
-.switch-row input:disabled ~ span {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.thread-status {
-  color: var(--muted);
-  font-size: 0.67rem;
-  white-space: nowrap;
-}
-
-.thread-status.available {
-  color: var(--success);
-}
-
-.thread-status.unavailable {
-  color: var(--danger);
-}
-
 .notice {
   width: min(980px, calc(100% - 2rem));
   margin: 1rem auto 0;
@@ -545,11 +461,6 @@ footer span {
     justify-content: flex-start;
   }
 
-  .thread-control {
-    width: 100%;
-    justify-content: space-between;
-  }
-
   .game-grid {
     grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
     gap: 0.8rem;
@@ -719,4 +630,196 @@ footer span {
   .local-rom-btn {
     width: 100%;
   }
+}
+
+.player-status {
+  padding: 10px 14px;
+  border: 1px solid var(--danger);
+  color: var(--text);
+  background: var(--surface);
+  font: 13px/1.5 ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.player-status[hidden] {
+  display: none;
+}
+
+.language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.language-control select {
+  max-width: 10rem;
+  min-height: 38px;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.language-control select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+html:lang(ja) body,
+html:lang(ja) button,
+html:lang(ja) input,
+html:lang(ja) select,
+html:lang(ja) .card-title,
+html:lang(ja) .modal-title,
+html:lang(ja) .modal-meta,
+html:lang(ja) .filter-btn,
+html:lang(ja) .empty-state,
+html:lang(ja) .core-picker-panel {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+html:lang(ja) .core-picker-title,
+html:lang(ja) .core-picker-kicker,
+html:lang(ja) .core-picker-label {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+html:lang(ja) .logo {
+  font-family: "Press Start 2P", ui-monospace, monospace;
+}
+
+html:lang(ja) .filter-btn,
+html:lang(ja) .local-rom-btn,
+html:lang(ja) .close-btn,
+html:lang(ja) .picker-btn {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* Keep the library out of the compositor while a WebGL game is active. */
+body.playing > .site-header,
+body.playing > main,
+body.playing > footer {
+  display: none;
+}
+
+body.playing {
+  background: #000;
+}
+
+body.playing .modal {
+  background: #000;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+body.playing .emulator-wrap {
+  box-shadow: none;
+}
+
+footer a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.diagnostics-download {
+  display: block;
+  margin: 1rem auto 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.diagnostics-download[hidden] {
+  display: none;
+}
+
+.footer-links {
+  margin-bottom: 1rem;
+}
+
+.changelog-page {
+  width: min(100% - 2rem, 780px);
+  margin: 0 auto;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.changelog-page a {
+  color: var(--accent-2);
+  text-underline-offset: 0.2em;
+}
+
+.changelog-toolbar,
+.release-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.changelog-page h1 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+}
+
+.changelog-intro,
+.changelog-note {
+  color: var(--muted);
+}
+
+.release {
+  margin: 1.5rem 0;
+  padding: clamp(1rem, 4vw, 1.6rem);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.release h2 {
+  margin: 0.8rem 0;
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.release-meta {
+  justify-content: flex-start;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.release-latest {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.release ul {
+  margin-bottom: 0;
+  padding-left: 1.3rem;
+}
+
+.release li + li {
+  margin-top: 0.6rem;
+}
+
+.changelog-note {
+  padding: 1rem;
+  border-left: 2px solid var(--accent-2);
+}
+
+.changelog-page a:focus-visible,
+.footer-links a:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 4px;
 }

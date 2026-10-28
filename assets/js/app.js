@@ -1,5 +1,8 @@
 "use strict";
 
+const I18n = window.RetroI18n;
+const t = (key, values) => I18n.t(key, values);
+
 const CORE_LABELS = Object.freeze({
   nes: "NES / Famicom",
   fceumm: "NES / Famicom",
@@ -93,22 +96,23 @@ const CORE_LABELS = Object.freeze({
 });
 
 const THREADS_REQUIRED_CORES = new Set(["psp", "ppsspp", "dos", "dosbox_pure", "3ds", "azahar"]);
-const STORAGE_KEY = "retro-vault-threads";
+const ACTIVE_GAME_KEY = "retro-vault-active-game";
 
 function storageGet(key) {
   try {
-    return window.localStorage.getItem(key);
+    return window.sessionStorage.getItem(key);
   } catch (error) {
-    console.debug("localStorage read unavailable:", error);
+    console.debug("Session storage read unavailable:", error);
     return null;
   }
 }
 
 function storageSet(key, value) {
   try {
-    window.localStorage.setItem(key, value);
+    if (value === null) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, value);
   } catch (error) {
-    console.debug("localStorage write unavailable:", error);
+    console.debug("Session storage write unavailable:", error);
   }
 }
 
@@ -236,19 +240,24 @@ const state = {
   games: [],
   activeCore: "all",
   activeSearch: "",
-  threadsEnabled: true,
-  threadsAvailable: false,
   openGameId: null,
+  activeGame: null,
+  notice: null,
+  playerError: null,
   pendingLocalFile: null,
   pendingLocalCandidates: null,
-  localLaunch: null
+  localLaunch: null,
+  closing: false,
+  closeToken: "",
+  closeTimer: null
 };
 
 const elements = {
   search: document.getElementById("search"),
+  language: document.getElementById("language-select"),
+  diagnosticsDownload: document.getElementById("diagnostics-download"),
   filters: document.getElementById("core-filters"),
-  threadsToggle: document.getElementById("threads-toggle"),
-  threadsStatus: document.getElementById("threads-status"),
+  playerStatus: document.getElementById("player-status"),
   notice: document.getElementById("notice"),
   loading: document.getElementById("loading"),
   grid: document.getElementById("game-grid"),
@@ -270,11 +279,11 @@ const elements = {
 };
 
 function coreLabel(core) {
-  return CORE_LABELS[core] || String(core || "UNKNOWN").toUpperCase();
+  return I18n.systemLabel(CORE_LABELS[core] || String(core || t("unknown")).toUpperCase());
 }
 
 function canonicalFilterKey(core) {
-  const label = coreLabel(core);
+  const label = CORE_LABELS[core] || String(core || "unknown");
   return label.toLowerCase();
 }
 
@@ -292,7 +301,7 @@ function fileExtension(filename) {
 function localGameTitle(filename) {
   const name = safeText(filename).trim();
   const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name || "Local ROM";
+  return dot > 0 ? name.slice(0, dot) : name || t("localTitle");
 }
 
 function localGameId(file) {
@@ -307,7 +316,8 @@ function localGameId(file) {
 }
 
 function coreOption(core) {
-  return UPLOAD_CORE_OPTIONS.find(([value]) => value === core) || [core, coreLabel(core)];
+  const option = UPLOAD_CORE_OPTIONS.find(([value]) => value === core);
+  return option ? [core, I18n.systemLabel(option[1])] : [core, coreLabel(core)];
 }
 
 function populateCorePicker(candidates) {
@@ -319,7 +329,7 @@ function populateCorePicker(candidates) {
   for (const [core, label] of allowed) {
     const option = document.createElement("option");
     option.value = core;
-    option.textContent = label;
+    option.textContent = I18n.systemLabel(label);
     elements.corePickerSelect.appendChild(option);
   }
 }
@@ -335,13 +345,11 @@ function showCorePicker(file, candidates, extension) {
   state.pendingLocalFile = file;
   state.pendingLocalCandidates = candidates;
   elements.corePickerFile.textContent = file.name;
-  elements.corePickerHelp.textContent = extension
-    ? `${extension} can be used by more than one system, so select the system for this ROM.`
-    : "The file extension is not recognized, so select the system for this ROM.";
+  elements.corePickerHelp.textContent = t(extension ? "ambiguousExtension" : "unknownExtension", { extension });
   populateCorePicker(candidates);
   elements.corePicker.classList.add("open");
   elements.corePicker.setAttribute("aria-hidden", "false");
-  elements.corePickerSelect.focus({ preventScroll: true });
+  elements.corePickerSelect.blur();
 }
 
 function detectCoreFromFile(file) {
@@ -359,10 +367,11 @@ function detectCoreFromFile(file) {
 }
 
 function openLocalGame(file, core) {
+  if (state.openGameId !== null) return;
   const threads = effectiveThreadsForGame({ core });
 
   if (THREADS_REQUIRED_CORES.has(core) && !threads) {
-    setNotice(`${coreLabel(core)} requires Threads, but Threads are unavailable or disabled.`);
+    setNotice("requiredThreads", () => ({ system: coreLabel(core) }));
     return;
   }
 
@@ -374,33 +383,36 @@ function openLocalGame(file, core) {
   };
 
   state.openGameId = game.id;
+  state.activeGame = game;
   state.localLaunch = { file, game };
   elements.modalTitle.textContent = game.title;
-  elements.modalMeta.textContent = `${coreLabel(core)} · LOCAL FILE · THREADS ${threads ? "ON" : "OFF"}`;
+  elements.modalMeta.textContent = t("localMeta", { system: coreLabel(core) });
+  resetPlayerStatus(game);
   elements.modal.classList.add("open");
   elements.modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  document.body.classList.add("playing");
 
   const params = new URLSearchParams({
     mode: "local",
     threads: threads ? "1" : "0",
+    lang: I18n.language,
     session: `${Date.now()}-${Math.random().toString(36).slice(2)}`
   });
 
   elements.frame.src = `/pages/player.html?${params.toString()}`;
-  elements.close.focus({ preventScroll: true });
+  elements.close.blur();
 }
 
 function handleLocalFile(file) {
   if (!(file instanceof File) || file.size <= 0) {
-    setNotice("That file is empty or could not be read.");
+    setNotice("emptyFile");
     return;
   }
 
   const detected = detectCoreFromFile(file);
   if (detected.core) {
-    const [, label] = coreOption(detected.core);
-    setNotice(`Detected ${label} from ${detected.extension}. The ROM stays in this browser and is not uploaded.`);
+    setNotice("detectedRom", () => ({ system: coreOption(detected.core)[1], extension: detected.extension }));
     openLocalGame(file, detected.core);
     return;
   }
@@ -408,53 +420,44 @@ function handleLocalFile(file) {
   showCorePicker(file, detected.candidates, detected.extension);
 }
 
-function setNotice(message) {
-  if (!message) {
-    elements.notice.hidden = true;
-    elements.notice.textContent = "";
-    return;
-  }
-  elements.notice.textContent = message;
-  elements.notice.hidden = false;
+function setNotice(key, values = {}) {
+  state.notice = key ? { key, values } : null;
+  renderNotice();
 }
 
-function detectThreadSupport() {
-  state.threadsAvailable = window.crossOriginIsolated === true && typeof window.SharedArrayBuffer === "function";
+function renderNotice() {
+  const notice = state.notice;
+  elements.notice.textContent = notice ? t(notice.key, typeof notice.values === "function" ? notice.values() : notice.values) : "";
+  elements.notice.hidden = !notice;
+}
 
-  const saved = storageGet(STORAGE_KEY);
-  state.threadsEnabled = saved === null ? true : saved === "true";
+function resetPlayerStatus(game) {
+  state.playerError = null;
+  elements.playerStatus.hidden = true;
+  elements.playerStatus.textContent = "";
+  storageSet(ACTIVE_GAME_KEY, game.title);
+}
 
-  if (!state.threadsAvailable) {
-    state.threadsEnabled = false;
-    elements.threadsToggle.checked = false;
-    elements.threadsToggle.disabled = true;
-    elements.threadsStatus.textContent = "UNAVAILABLE";
-    elements.threadsStatus.className = "thread-status unavailable";
-    setNotice("Threads are unavailable in this browser session. The site will continue in single-threaded mode. On Cloudflare Pages, check that the _headers file is deployed.");
-    return;
-  }
-
-  elements.threadsToggle.disabled = false;
-  elements.threadsToggle.checked = state.threadsEnabled;
-  elements.threadsStatus.textContent = "AVAILABLE";
-  elements.threadsStatus.className = "thread-status available";
-  setNotice("");
+function showPlayerError(message, key = "", values = {}) {
+  state.playerError = { message, key, values };
+  elements.playerStatus.textContent = key ? t(key, values) : message ? I18n.errorText(message) : t("emulatorStopped");
+  elements.playerStatus.hidden = false;
 }
 
 function validateGame(game, index) {
   const errors = [];
 
   if (!Number.isInteger(game.id) || game.id <= 0) {
-    errors.push(`Game #${index + 1} has an invalid id.`);
+    errors.push(t("invalidId", { number: index + 1 }));
   }
   if (!safeText(game.title)) {
-    errors.push(`Game #${index + 1} has no title.`);
+    errors.push(t("missingTitle", { number: index + 1 }));
   }
   if (!safeText(game.rom)) {
-    errors.push(`Game #${index + 1} has no rom filename.`);
+    errors.push(t("missingRom", { number: index + 1 }));
   }
   if (!safeText(game.core)) {
-    errors.push(`Game #${index + 1} has no core.`);
+    errors.push(t("missingCore", { number: index + 1 }));
   }
 
   return errors;
@@ -491,14 +494,14 @@ async function loadGames() {
     const ids = new Set();
     for (const game of data) {
       if (ids.has(game.id)) {
-        errors.push(`Duplicate game id detected: ${game.id}.`);
+        errors.push(t("duplicateId", { id: game.id }));
       }
       ids.add(game.id);
     }
 
     if (errors.length > 0) {
       console.warn("Game database validation warnings:", errors);
-      setNotice(errors.slice(0, 3).join(" "));
+      setNotice("validationWarnings");
     }
 
     state.games = data.filter(game =>
@@ -511,7 +514,7 @@ async function loadGames() {
   } catch (error) {
     console.error("Failed to load games.json:", error);
     state.games = [];
-    setNotice("The game database could not be loaded. Check games.json and your web server configuration.");
+    setNotice("databaseError");
   } finally {
     elements.loading.hidden = true;
     buildFilterButtons();
@@ -520,6 +523,12 @@ async function loadGames() {
 }
 
 function buildFilterButtons() {
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "filter-btn" + (state.activeCore === "all" ? " active" : "");
+  all.dataset.core = "all";
+  all.textContent = t("all");
+  elements.filters.replaceChildren(all);
   const unique = new Map();
 
   for (const game of state.games) {
@@ -532,12 +541,12 @@ function buildFilterButtons() {
     }
   }
 
-  const sorted = [...unique.values()].sort((a, b) => a.label.localeCompare(b.label));
+  const sorted = [...unique.values()].sort((a, b) => a.label.localeCompare(b.label, I18n.language));
 
   for (const item of sorted) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "filter-btn";
+    button.className = "filter-btn" + (state.activeCore === item.key ? " active" : "");
     button.dataset.core = item.key;
     button.textContent = item.label;
     elements.filters.appendChild(button);
@@ -557,14 +566,14 @@ function createGameCard(game, index) {
   card.type = "button";
   card.className = "game-card";
   card.style.animationDelay = `${Math.min(index * 28, 360)}ms`;
-  card.setAttribute("aria-label", `Play ${game.title}`);
+  card.setAttribute("aria-label", t("playGame", { title: game.title }));
 
   const thumbWrap = document.createElement("div");
   thumbWrap.className = "thumb-wrap";
 
   const placeholder = document.createElement("div");
   placeholder.className = "no-thumb";
-  placeholder.textContent = "NO IMAGE";
+  placeholder.textContent = t("noImage");
 
   if (game.thumbnail) {
     const image = document.createElement("img");
@@ -629,12 +638,12 @@ function renderGrid() {
 
   if (filtered.length === 0) {
     elements.empty.hidden = false;
-    elements.stats.textContent = state.games.length === 0 ? "" : `0 / ${state.games.length} GAMES`;
+    elements.stats.textContent = state.games.length === 0 ? "" : t("gameCount", { shown: 0, total: state.games.length });
     return;
   }
 
   elements.empty.hidden = true;
-  elements.stats.textContent = `${filtered.length} / ${state.games.length} GAMES`;
+  elements.stats.textContent = t("gameCount", { shown: filtered.length, total: state.games.length });
 
   const fragment = document.createDocumentFragment();
   filtered.forEach((game, index) => fragment.appendChild(createGameCard(game, index)));
@@ -642,54 +651,76 @@ function renderGrid() {
 }
 
 function effectiveThreadsForGame(game) {
-  if (!state.threadsAvailable) {
+  if (window.crossOriginIsolated !== true || typeof window.SharedArrayBuffer !== "function") {
     return false;
   }
   if (typeof game.threads === "boolean") {
     return game.threads;
   }
-  return state.threadsEnabled;
+  // Only cores that cannot run without threads opt in automatically.
+  return THREADS_REQUIRED_CORES.has(game.core);
 }
 
 function openGame(game) {
+  if (state.openGameId !== null) return;
   const threads = effectiveThreadsForGame(game);
 
   if (THREADS_REQUIRED_CORES.has(game.core) && !threads) {
-    setNotice(`${coreLabel(game.core)} requires Threads. Enable Threads before launching this game.`);
-    elements.threadsToggle.focus();
+    setNotice("requiredThreads", () => ({ system: coreLabel(game.core) }));
     return;
   }
 
   state.openGameId = game.id;
+  state.activeGame = game;
   elements.modalTitle.textContent = game.title;
-  elements.modalMeta.textContent = `${coreLabel(game.core)} · THREADS ${threads ? "ON" : "OFF"}`;
+  elements.modalMeta.textContent = coreLabel(game.core);
+  resetPlayerStatus(game);
   elements.modal.classList.add("open");
   elements.modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  document.body.classList.add("playing");
 
   const params = new URLSearchParams({
     id: String(game.id),
     threads: threads ? "1" : "0",
+    lang: I18n.language,
     session: `${Date.now()}-${Math.random().toString(36).slice(2)}`
   });
 
   elements.frame.src = `/pages/player.html?${params.toString()}`;
-  elements.close.focus({ preventScroll: true });
+  elements.close.blur();
 }
 
 function closeModal() {
-  if (!elements.modal.classList.contains("open")) {
-    return;
-  }
+  if (!elements.modal.classList.contains("open") || state.closing) return;
+  state.closing = true;
+  state.closeToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  elements.close.disabled = true;
+  elements.close.textContent = t("closing");
+  // A stalled core must not trap the user in the player.
+  state.closeTimer = setTimeout(finishClosingPlayer, 2000);
+  elements.frame.contentWindow.postMessage({ type: "retro-vault-player-stop", token: state.closeToken }, window.location.origin);
+}
 
+function finishClosingPlayer() {
+  if (state.closeTimer !== null) clearTimeout(state.closeTimer);
+  state.closeTimer = null;
+  state.closing = false;
+  state.closeToken = "";
+  elements.close.disabled = false;
+  elements.close.textContent = t("close");
+  document.body.classList.remove("playing");
   elements.modal.classList.remove("open");
   elements.modal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
   state.openGameId = null;
+  state.activeGame = null;
   state.localLaunch = null;
+  storageSet(ACTIVE_GAME_KEY, null);
 
   // Replacing the iframe URL tears down the whole emulator document, including WASM, WebAudio and event handlers.
   elements.frame.src = "about:blank";
+  refreshDiagnosticsButton();
 }
 
 elements.filters.addEventListener("click", event => {
@@ -708,11 +739,6 @@ elements.filters.addEventListener("click", event => {
 elements.search.addEventListener("input", event => {
   state.activeSearch = event.target.value.trim().toLowerCase();
   renderGrid();
-});
-
-elements.threadsToggle.addEventListener("change", event => {
-  state.threadsEnabled = Boolean(event.target.checked);
-  storageSet(STORAGE_KEY, String(state.threadsEnabled));
 });
 
 
@@ -748,12 +774,6 @@ elements.corePicker.addEventListener("click", event => {
 
 elements.close.addEventListener("click", closeModal);
 
-elements.modal.addEventListener("click", event => {
-  if (event.target === elements.modal) {
-    closeModal();
-  }
-});
-
 document.addEventListener("keydown", event => {
   if (event.key !== "Escape") {
     return;
@@ -762,16 +782,25 @@ document.addEventListener("keydown", event => {
     closeCorePicker();
     return;
   }
-  closeModal();
 });
 
 window.addEventListener("message", event => {
   if (event.origin !== window.location.origin || event.source !== elements.frame.contentWindow) {
     return;
   }
+  if (state.openGameId === null) return;
+  if (event.data?.type === "retro-vault-player-stopped") {
+    if (state.closing && event.data.token === state.closeToken) finishClosingPlayer();
+    return;
+  }
+  if (state.closing) return;
+
+  if (["retro-vault-player-ready", "retro-vault-player-local-ready"].includes(event.data?.type)) {
+    elements.frame.contentWindow.postMessage({ type: "retro-vault-language", language: I18n.language }, window.location.origin);
+  }
 
   if (event.data?.type === "retro-vault-player-local-ready") {
-    if (state.localLaunch) {
+    if (state.localLaunch?.file) {
       elements.frame.contentWindow.postMessage({
         type: "retro-vault-local-rom",
         file: state.localLaunch.file,
@@ -781,16 +810,88 @@ window.addEventListener("message", event => {
     return;
   }
 
+  if (event.data?.type === "retro-vault-player-start") {
+    // The iframe has loaded the ROM into the core; release the launcher's File reference.
+    if (state.localLaunch) state.localLaunch.file = null;
+    return;
+  }
+
   if (event.data?.type === "retro-vault-player-error") {
-    setNotice(event.data.message || "The emulator failed to start.");
+    showPlayerError(event.data.message, event.data.key || "", event.data.values || {});
   }
 
   if (event.data?.type === "retro-vault-player-exit") {
-    closeModal();
+    showPlayerError(event.data.message, event.data.key || "emulatorStopped", event.data.values || {});
   }
 });
 
-detectThreadSupport();
+elements.language.value = I18n.mode;
+elements.language.addEventListener("change", event => {
+  I18n.setLanguage(event.target.value);
+  event.target.blur();
+});
+
+I18n.onChange(() => {
+  if (state.closing) elements.close.textContent = t("closing");
+  elements.language.value = I18n.mode;
+  buildFilterButtons();
+  renderGrid();
+  renderNotice();
+  if (state.activeGame) {
+    elements.modalMeta.textContent = state.localLaunch
+      ? t("localMeta", { system: coreLabel(state.activeGame.core) })
+      : coreLabel(state.activeGame.core);
+    elements.frame.contentWindow.postMessage({ type: "retro-vault-language", language: I18n.language }, window.location.origin);
+  }
+  if (state.pendingLocalFile) {
+    const selected = elements.corePickerSelect.value;
+    populateCorePicker(state.pendingLocalCandidates);
+    elements.corePickerSelect.value = selected;
+    const extension = fileExtension(state.pendingLocalFile.name);
+    elements.corePickerHelp.textContent = t(extension ? "ambiguousExtension" : "unknownExtension", { extension });
+  }
+  if (state.playerError) {
+    const { message, key, values } = state.playerError;
+    showPlayerError(message, key, values);
+  }
+});
+
+function readDiagnostics() {
+  try {
+    const value = window.sessionStorage.getItem("retro-vault-diagnostics");
+    if (!value || value.length > 16000) return null;
+    const parsed = JSON.parse(value);
+    return parsed?.schemaVersion === 1 ? parsed : null;
+  } catch { return null; }
+}
+
+function refreshDiagnosticsButton() {
+  elements.diagnosticsDownload.hidden = !readDiagnostics();
+}
+
+elements.diagnosticsDownload.addEventListener("click", () => {
+  const diagnostics = readDiagnostics();
+  if (!diagnostics) return;
+  const blob = new Blob([JSON.stringify(diagnostics, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "retro-vault-diagnostics.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  elements.diagnosticsDownload.blur();
+});
+
+I18n.apply();
+refreshDiagnosticsButton();
+
+const interruptedGame = storageGet(ACTIVE_GAME_KEY);
+if (interruptedGame) {
+  storageSet(ACTIVE_GAME_KEY, null);
+  setNotice("pageReloaded", { title: interruptedGame });
+}
 loadGames();
 
 
