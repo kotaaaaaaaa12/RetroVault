@@ -5,7 +5,7 @@ const t = (key, values) => I18n.t(key, values);
 const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
 if (["en", "ja"].includes(requestedLanguage)) I18n.setLanguage(requestedLanguage, false);
 
-const DEFAULT_EJS_VERSION = "4.2.3";
+const DEFAULT_EJS_VERSION = "4.3.0-pre";
 const DEFAULT_EJS_DATA_PATH = `https://cdn.emulatorjs.org/${DEFAULT_EJS_VERSION}/data/`;
 
 const THREADS_REQUIRED_CORES = new Set([
@@ -35,6 +35,47 @@ let lastReportedError = "";
 let pausedForVisibility = false;
 let saveManager = null;
 let restoreConsoleDiagnostics = null;
+let restoreAudioContextTracking = null;
+let legacyLanguageLoader = false;
+const ownedAudioContexts = new Set();
+
+function installAudioContextTracking() {
+  // RWebAudio keeps its context private. Track contexts created in this iframe.
+  const hooks = [];
+  const proxies = new Map();
+  for (const key of ["AudioContext", "webkitAudioContext"]) {
+    const original = window[key];
+    if (typeof original !== "function") continue;
+    const wrapped = proxies.get(original) || new Proxy(original, {
+      construct(target, args, newTarget) {
+        const context = Reflect.construct(target, args, newTarget);
+        if (ownedAudioContexts.size < 16) ownedAudioContexts.add(context);
+        return context;
+      }
+    });
+    proxies.set(original, wrapped);
+    try {
+      window[key] = wrapped;
+      if (window[key] === wrapped) hooks.push({ key, original, wrapped });
+    } catch {}
+  }
+  restoreAudioContextTracking = () => {
+    for (const { key, original, wrapped } of hooks) {
+      try { if (window[key] === wrapped) window[key] = original; } catch {}
+    }
+    restoreAudioContextTracking = null;
+  };
+}
+
+function existingAudioContexts(module = window.EJS_emulator?.Module) {
+  const contexts = new Set(ownedAudioContexts);
+  const audio = module?.AL;
+  if (audio?.currentCtx?.audioCtx) contexts.add(audio.currentCtx.audioCtx);
+  for (const entry of Object.values(audio?.contexts || {})) {
+    if (entry?.audioCtx) contexts.add(entry.audioCtx);
+  }
+  return contexts;
+}
 
 function errorContext(reason, source = "", event = {}) {
   const context = { source: String(source || event.filename || "").slice(0, 250) };
@@ -60,12 +101,7 @@ function diagnosticEnvironment() {
     },
     audioStates: []
   };
-  const contexts = new Set();
-  const audio = window.EJS_emulator?.Module?.AL;
-  if (audio?.currentCtx?.audioCtx) contexts.add(audio.currentCtx.audioCtx);
-  for (const entry of Object.values(audio?.contexts || {}).slice(0, 4)) {
-    if (entry?.audioCtx) contexts.add(entry.audioCtx);
-  }
+  const contexts = existingAudioContexts();
   for (const context of [...contexts].slice(0, 4)) environment.audioStates.push(String(context.state || "unknown").slice(0, 40));
   try {
     const policy = document.permissionsPolicy || document.featurePolicy;
@@ -135,6 +171,12 @@ function sampleDiagnostics(phase) {
   diagnostics.gameElapsedSeconds = diagnostics.gameStartedAtMs === null ? null
     : Math.max(0, Math.round((Date.now() - diagnostics.gameStartedAtMs) / 1000));
   diagnostics.environment = diagnosticEnvironment();
+  const emulator = window.EJS_emulator;
+  if (typeof emulator?.ejs_version === "string") diagnostics.runtimeVersion = emulator.ejs_version.slice(0, 80);
+  if (emulator?.started) {
+    diagnostics.fastForward = emulator.isFastForward === true;
+    diagnostics.slowMotion = emulator.isSlowMotion === true;
+  }
   persistDiagnostics();
 }
 
@@ -149,11 +191,12 @@ function recordActivity(action, detail = {}) {
   sampleDiagnostics();
 }
 
-function beginDiagnostics(game, threads) {
+function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-11",
-    emulatorVersion: game.ejsVersion || DEFAULT_EJS_VERSION,
+    appVersion: "20261028-12",
+    emulatorVersion: version,
+    dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
     userAgent: String(window.navigator?.userAgent || "").slice(0, 500),
     threads,
@@ -367,6 +410,9 @@ function startEmulator(game, gameUrl, requestedThreads) {
   }
 
   const dataPath = resolveDataPath(game);
+  const loaderVersion = new URL(dataPath).pathname.match(/\/([^/]+)\/data\/$/)?.[1]
+    || game.ejsVersion || DEFAULT_EJS_VERSION;
+  legacyLanguageLoader = /^(?:4\.[0-2](?:\.|$)|stable$)/i.test(loaderVersion);
   if (typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game, recordActivity);
 
   // Keep the player configuration intentionally close to the official EmulatorJS demo.
@@ -378,11 +424,11 @@ function startEmulator(game, gameUrl, requestedThreads) {
   window.EJS_pathtodata = dataPath;
   // A tap inside the player establishes interaction in the emulator document.
   window.EJS_startOnLoaded = false;
-  window.EJS_language = I18n.emulatorLocale();
-  window.EJS_disableAutoLang = false;
+  window.EJS_language = I18n.emulatorLocale(legacyLanguageLoader ? "4.2.3" : DEFAULT_EJS_VERSION);
+  window.EJS_disableAutoLang = !legacyLanguageLoader;
   if (I18n.language === "ja") {
     localeObjectUrl = URL.createObjectURL(new Blob([JSON.stringify(I18n.emulatorDictionary())], { type: "application/json" }));
-    window.EJS_paths = { "ja-JA": localeObjectUrl };
+    window.EJS_paths = { [window.EJS_language]: localeObjectUrl };
   }
   window.EJS_threads = threads;
   window.EJS_defaultOptions = {
@@ -395,7 +441,8 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   configureOptionalOptions(game);
   clearSavedThreadOverride(game);
-  beginDiagnostics(game, threads);
+  beginDiagnostics(game, threads, loaderVersion);
+  installAudioContextTracking();
 
   window.EJS_ready = () => {
     if (playerClosing) return;
@@ -403,7 +450,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
     syncEmulatorLanguage();
-    // EmulatorJS 4.2.3 emits exit for both failures and explicit exits.
+    // EmulatorJS emits exit for both failures and explicit exits.
     if (typeof emulator?.on === "function") {
       emulator.on("start-clicked", () => {
         hideMessage();
@@ -538,6 +585,7 @@ function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
   restoreConsoleDiagnostics?.();
+  restoreAudioContextTracking?.();
   saveManager?.stop();
   pausedForVisibility = false;
   if (diagnosticTimer !== null) clearInterval(diagnosticTimer);
@@ -580,14 +628,11 @@ function shutdownPlayer(reason = "close") {
   });
   cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation]).then(([flushResult]) => {
     const saveFlush = flushResult.status === "fulfilled" ? flushResult.value : "failed";
-    const contexts = new Set();
-    if (module?.AL?.currentCtx?.audioCtx) contexts.add(module.AL.currentCtx.audioCtx);
-    for (const context of Object.values(module?.AL?.contexts || {})) {
-      if (context?.audioCtx) contexts.add(context.audioCtx);
-    }
+    const contexts = existingAudioContexts(module);
     for (const context of contexts) {
       try { Promise.resolve(context.close()).catch(() => {}); } catch {}
     }
+    ownedAudioContexts.clear();
     if (emulator?.canvas) {
       emulator.canvas.width = 1;
       emulator.canvas.height = 1;
@@ -681,7 +726,7 @@ function localizeEmulatorNode(node, traverse = true) {
 function syncEmulatorLanguage() {
   const emulator = window.EJS_emulator;
   if (emulator?.config) {
-    emulator.config.language = I18n.emulatorLocale();
+    emulator.config.language = I18n.emulatorLocale(legacyLanguageLoader ? "4.2.3" : DEFAULT_EJS_VERSION);
     emulator.config.langJson = I18n.emulatorDictionary();
   }
   localizeEmulatorNode(document.getElementById("game"));

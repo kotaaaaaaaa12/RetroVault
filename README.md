@@ -16,16 +16,43 @@ Recent internally handled runtime warnings and errors are also retained. No
 additional permissions are requested and no errors are hidden. Send the JSON
 with the affected system and game name to investigate the actual failing call.
 
+## EmulatorJS update: 2026-10-28
+
+The main player now defaults to the same pinned **4.3.0-pre** runtime used in the
+submitted standalone NES test that ran for 325 seconds without a reload. This is
+a prerelease, not a claim of stability for every core or the complete main player
+on Safari. The default data path is
+`https://cdn.emulatorjs.org/4.3.0-pre/data/`. Per-game `ejsVersion` and `dataPath`
+overrides are still respected. For example, an explicit `ejsVersion: "4.2.3"`
+continues to use that version and its older locale-loading behavior.
+
+The new loader uses the short `ja` and `en` locale names. Retro Vault supplies
+its bundled Japanese dictionary through `EJS_paths.ja` and enables the loader's
+language fetch. Explicit 4.0–4.2 loaders retain `ja-JA` and their previous switch
+semantics. Controls, save identities, game names, and game IDs are preserved.
+
+Existing state slots are retained with their recorded versions. A 4.2.3 state is
+not automatically converted or loaded into 4.3.0-pre; it can still be exported
+and used by selecting the same older version for that game. Game save paths are
+unchanged, but this is not a guarantee that every core's files are compatible
+across releases. Download a backup using the existing save controls when needed.
+
+Audio contexts created in the player iframe are tracked without creating extra
+contexts. This allows the private RWebAudio context to be closed during normal
+player shutdown as well as legacy OpenAL contexts. The iframe is then unloaded.
+The log now includes the available runtime version and fast-forward/slow-motion
+flags. No frame-rate cap or Mario timer modification is introduced.
+
 ## Same-site NES comparison
 
 The next comparison defaults to **4.3.0-pre**. The earlier **4.2.3** condition is
-still selectable. The normal player continues to default to 4.2.3. Each test
+still selectable. The normal player also defaults to 4.3.0-pre. Each test
 loads its complete matching runtime and cores from its versioned CDN directory;
 cores from different releases are not mixed. Save names include the test release.
 
 The [official 4.3.0-pre release notes](https://github.com/EmulatorJS/EmulatorJS/releases/tag/v4.3.0-pre)
 list the move to rwebaudio and disabling async processing for most cores. This is
-a prerelease comparison, not a proven fix or a default upgrade of all games.
+a prerelease comparison, not proof that all games are stable.
 The two pinned loaders use different conditions for language loading, so the
 comparison sets the correct option for each. Diagnostic reports include the
 configured release, data path, and available runtime version and resolved core.
@@ -211,21 +238,20 @@ Add this object to the existing array in `data/games.json`. Use a unique ID:
   "title": "Example 3DS Game",
   "rom": "example.3ds",
   "core": "3ds",
-  "thumbnail": "example.png",
-  "ejsVersion": "nightly"
+  "thumbnail": "example.png"
 }
 ```
 
 Place the ROM at `data/roms/example.3ds` and the thumbnail at
-`data/thumbs/example.png`. For database entries, explicitly set
-`ejsVersion` to `nightly`; the local ROM picker adds that setting automatically.
+`data/thumbs/example.png`. The pinned 4.3.0-pre release includes the Azahar
+core, so no nightly override is required. Local ROMs also use the pinned default.
 The `3ds` and `azahar` core names are recognized by Retro Vault. Both require
 threads, which the launcher enables when shared memory is available. Do not set
 `threads` to `false` for these cores.
 
 Data source precedence is `dataPath`, then a valid `ejsVersion`, then the pinned
-default (`4.2.3`). Remove an old `dataPath` override if you want `ejsVersion` to
-select the CDN version. Selecting the nightly loader is not a game compatibility
+default (`4.3.0-pre`). Remove an old `dataPath` override if you want `ejsVersion` to
+select the CDN version. Selecting a compatible loader is not a gameplay
 test; Nintendo 3DS gameplay on Safari has not been verified.
 
 ## Changelog
@@ -257,7 +283,7 @@ The launcher auto-selects a system when the extension is distinctive, for exampl
 - `.ws` / `.wsc` -> WonderSwan
 - `.adf` / `.adz` / `.ipf` -> Amiga
 - `.wad` -> Doom / PrBoom
-- `.3ds` / `.cci` / `.cia` -> Nintendo 3DS nightly
+- `.3ds` / `.cci` / `.cia` -> Nintendo 3DS (4.3.0-pre by default)
 
 Ambiguous archive/disc extensions such as `.bin`, `.cue`, `.iso`, `.chd`, `.zip`, `.7z`, `.rar`, `.rom`, `.dsk` and `.pbp` intentionally show the system picker instead of guessing.
 
@@ -280,7 +306,7 @@ PSP requires Threads. DOSBox Pure and experimental 3DS builds should also be tre
 
 ## EmulatorJS version
 
-The default EmulatorJS data path is pinned to `4.2.3` instead of the moving `stable` channel. This avoids an unrelated future release silently changing the site.
+The default EmulatorJS data path is pinned to `4.3.0-pre` instead of a moving channel. This avoids an unrelated future release silently changing the site.
 
 A game can explicitly select another EmulatorJS version with `ejsVersion`, for example `latest` or `nightly`. Use moving channels only when you intentionally accept breaking changes.
 
@@ -299,7 +325,7 @@ The UI recognizes the common EmulatorJS aliases and many explicit core names, in
 - DOSBox Pure
 - Extra cores exposed by the pinned core set: ZX81, ZX Spectrum, Amstrad CPC, Doom / PrBoom and Philips CD-i
 
-Nintendo 3DS appears in the current upstream demo but is not part of the pinned `4.2.3` stable core set. If you intentionally test it, use an appropriate newer channel such as `nightly` per game.
+Nintendo 3DS is included in the pinned `4.3.0-pre` core set through Azahar. It requires threads and WebGL2. Its inclusion does not establish gameplay compatibility on Safari.
 
 ## Why the iframe exists
 

@@ -1,7 +1,7 @@
 "use strict";
 
 // Interface messages and locale selection are shared by the launcher and player.
-// EmulatorJS translations derive from v4.2.3 and are extended for Retro Vault.
+// EmulatorJS translations derive from v4.2.3 and v4.3.0-pre, extended for Retro Vault.
 // See docs/LOCALIZATION.md and docs/LICENSE-EmulatorJS.txt.
 (() => {
   const messages = {
@@ -91,7 +91,7 @@
     "releaseOneThreads": "Removed the threading switch. Ordinary cores default to OFF; cores that require threads enable them when supported.",
     "releaseOneErrors": "Kept the player open when errors occur and added visible graphics and runtime error messages.",
     "releaseOneReload": "Added a notice when the page reloads during a game.",
-    "changelogLimit": "These changes do not confirm that Safari crashes are resolved. Nintendo 3DS gameplay has not been verified on Safari.",
+    "changelogLimit": "The standalone NES comparison ran for 5 minutes 25 seconds without a reload in the submitted test. This prerelease is not verified across all systems or in the updated main player on Safari. Nintendo 3DS gameplay on Safari remains unverified.",
     "localSaves": "Saves",
     "saveManagerTitle": "Saves on this device",
     "backToGame": "Back to game",
@@ -121,10 +121,10 @@
     "noSystemSave": "No game save file is available yet. Use the game's own save menu, or use a state slot if supported.",
     "backupReady": "The backup is ready for download.",
     "legacyStateMissing": "No earlier browser state was found for this game.",
-    "confirmLegacyState": "Import the earlier browser state into slot 1? Its core and version cannot be verified.",
+    "confirmLegacyState": "Import the earlier browser state into slot 1? Its core and version cannot be verified. States from 4.2.3 are not verified for 4.3.0-pre. Continue only if this state was saved with the current game, core, and version.",
     "confirmOverwrite": "Replace the state in slot {slot}? The previous state in this slot will be replaced.",
     "confirmLoadState": "Load slot {slot}? Your current unsaved progress will be replaced.",
-    "confirmRawState": "This file has no game or version information. Import it for {title}? Use only a state from the same game and core.",
+    "confirmRawState": "This file has no game or version information. Import it for {title}? Use only a state from the same game, core, and EmulatorJS version.",
     "confirmDeleteState": "Delete the state in slot {slot}? This cannot be undone.",
     "stateSaveDone": "Slot {slot} was saved on this device.",
     "stateLoadDone": "Slot {slot} was sent to the emulator. Return to the game to continue.",
@@ -171,12 +171,16 @@
     "releaseNineTitle": "Save write cleanup and reload diagnostics",
     "releaseNineWrites": "Removed extra forced filesystem writes after native automatic saves and stopped rebuilding the hidden save panel during play.",
     "releaseNineTiming": "Added elapsed time since game start and a bounded recent activity log. Reload notices show the last recorded elapsed time when available.",
-    "coreTestVersionHelp": "Try 4.3.0-pre for the next comparison. It changes the audio driver and disables async processing for most cores. It is a prerelease, and this test does not establish that it fixes Safari reloads. The normal player still defaults to 4.2.3.",
+    "coreTestVersionHelp": "The normal player now defaults to the tested 4.3.0-pre release. This page also offers the earlier 4.2.3 condition for comparison. The newer release changes the audio driver and disables async processing for most cores; it remains a prerelease.",
     "coreTestVersion": "EmulatorJS version",
     "coreTestPreview": "4.3.0-pre (comparison)",
     "coreTestStable": "4.2.3 (previous test)",
     "releaseElevenTitle": "EmulatorJS release comparison",
-    "releaseElevenTest": "Added 4.3.0-pre to the standalone NES comparison, using its matching loader and cores. Tests default to this prerelease; the normal player still defaults to 4.2.3. Test save names are separated by release, and diagnostics record the selected release and available runtime information."
+    "releaseElevenTest": "Added 4.3.0-pre to the standalone NES comparison, using its matching loader and cores. Tests default to this prerelease; the normal player still defaults to 4.2.3. Test save names are separated by release, and diagnostics record the selected release and available runtime information.",
+    "releaseTwelveTitle": "Main player update to EmulatorJS 4.3.0-pre",
+    "releaseTwelveVersion": "Made the same pinned 4.3.0-pre runtime used in the successful NES comparison the default for the main player. Explicit per-game version and data-path settings remain supported.",
+    "releaseTwelveLocale": "Updated native Japanese locale loading for the new loader and added its remaining menu translations. Explicit older versions retain the legacy language-loading settings.",
+    "releaseTwelveSaves": "Preserved game save names and stored state slots, retained version compatibility checks, and added cleanup for audio contexts created by the new runtime. Local 3DS files now use the same pinned default."
   },
   "ja": {
     "subtitle": "ゲームを選んでプレイ",
@@ -264,7 +268,7 @@
     "releaseOneThreads": "並列処理の切り替えを削除しました。通常のコアは無効で起動し、必須のコアは対応環境で有効にします。",
     "releaseOneErrors": "エラーが起きてもプレイヤーを閉じず、描画処理や実行時のエラーを画面に表示するようにしました。",
     "releaseOneReload": "ゲーム中にページが再読み込みされた場合の通知を追加しました。",
-    "changelogLimit": "Safariでのクラッシュ解消を確認したものではありません。Safariでのニンテンドー3DSのゲーム動作も未確認です。",
+    "changelogLimit": "提出されたNES単独テストでは、5分25秒間の再読み込みなし動作を確認しました。この試験公開版の全ハードでの動作や、更新後の通常プレイヤーのSafari実機動作は未確認です。Safariでの3DS動作も未確認です。",
     "localSaves": "セーブ",
     "saveManagerTitle": "この端末のセーブ",
     "backToGame": "ゲームに戻る",
@@ -294,10 +298,10 @@
     "noSystemSave": "ゲーム内セーブのファイルがまだありません。ゲーム内でセーブするか、対応していればステートを保存してください。",
     "backupReady": "バックアップのダウンロードを開始しました。",
     "legacyStateMissing": "このゲームの以前のブラウザ保存は見つかりませんでした。",
-    "confirmLegacyState": "以前のブラウザ保存をスロット1に取り込みますか？ コアとバージョンの一致は確認できません。",
+    "confirmLegacyState": "以前のブラウザ保存をスロット1に取り込みますか？ コアとバージョンの一致は確認できません。4.2.3のステートが4.3.0-preで使えるとは確認できていません。現在と同じゲーム・コア・バージョンで保存したものだけ取り込んでください。",
     "confirmOverwrite": "スロット{slot}のステートを上書きしますか？ このスロットの以前のステートは置き換えられます。",
     "confirmLoadState": "スロット{slot}を読み込みますか？ 現在の保存していない進行状況は失われます。",
-    "confirmRawState": "このファイルにはゲームやバージョンの情報がありません。「{title}」用として取り込みますか？ 同じゲーム・コアで保存したステートを使ってください。",
+    "confirmRawState": "このファイルにはゲームやバージョンの情報がありません。「{title}」用として取り込みますか？ 同じゲーム・コア・EmulatorJSバージョンで保存したステートを使ってください。",
     "confirmDeleteState": "スロット{slot}のステートを削除しますか？ 元に戻せません。",
     "stateSaveDone": "スロット{slot}をこの端末に保存しました。",
     "stateLoadDone": "スロット{slot}をエミュレーターに読み込ませました。「ゲームに戻る」で再開できます。",
@@ -344,12 +348,16 @@
     "releaseNineTitle": "保存処理の整理と再読み込みの診断",
     "releaseNineWrites": "標準の自動保存に重ねて行っていた強制書き込みを削除しました。プレイ中に非表示のセーブ画面を作り直す処理も省きました。",
     "releaseNineTiming": "ゲーム開始後の経過時間と、件数を制限した直近の処理記録を追加しました。再読み込み時には、記録があれば最後に確認した経過時間を表示します。",
-    "coreTestVersionHelp": "次の比較では4.3.0-preを選んでください。この版では音声ドライバーが変更され、多くのコアで非同期処理が無効になっています。試験公開版で、このテストでSafariの再読み込みが直ると確認できたわけではありません。通常のプレイヤーの初期設定は4.2.3のままです。",
+    "coreTestVersionHelp": "通常のプレイヤーも、動作確認した4.3.0-preを初期設定にしました。このページでは以前の4.2.3も比較用に選べます。新しい版は音声ドライバーが変更され、多くのコアで非同期処理が無効になっています。試験公開版である点は変わりません。",
     "coreTestVersion": "EmulatorJSのバージョン",
     "coreTestPreview": "4.3.0-pre（今回の比較）",
     "coreTestStable": "4.2.3（前回のテスト）",
     "releaseElevenTitle": "EmulatorJSのバージョン比較",
-    "releaseElevenTest": "NES比較テストに4.3.0-preを追加し、この版に対応するローダーとコアをまとめて読み込むようにしました。テストでは試験公開版を初期選択にしますが、通常のプレイヤーの初期設定は4.2.3のままです。テスト用のセーブ名はバージョンごとに分け、ログには選択した版と取得できた実行情報を記録します。"
+    "releaseElevenTest": "NES比較テストに4.3.0-preを追加し、この版に対応するローダーとコアをまとめて読み込むようにしました。テストでは試験公開版を初期選択にしますが、通常のプレイヤーの初期設定は4.2.3のままです。テスト用のセーブ名はバージョンごとに分け、ログには選択した版と取得できた実行情報を記録します。",
+    "releaseTwelveTitle": "通常プレイヤーをEmulatorJS 4.3.0-preに更新",
+    "releaseTwelveVersion": "NES比較テストで動作を確認した固定版4.3.0-preを、通常プレイヤーの初期設定にも採用しました。JSONで指定したゲーム別のバージョンや読み込み先も引き続き使えます。",
+    "releaseTwelveLocale": "新しいローダーに合わせて日本語辞書の読み込みを変更し、追加メニューの翻訳を補いました。明示的に旧版を指定した場合は旧版用の言語設定を使います。",
+    "releaseTwelveSaves": "ゲーム内セーブの名前と保存済みスロットを維持し、バージョンの一致確認も継続します。新しい実行環境が作る音声コンテキストの終了処理を追加しました。端末内の3DSファイルも同じ固定版を使います。"
   }
 };
   const nativeEn = {
@@ -1132,7 +1140,10 @@
   "canvas": "canvas",
   "retroarch": "retroarch",
   "unlimited": "unlimited",
-  "RetroArch Options": "RetroArch Options"
+  "RetroArch Options": "RetroArch Options",
+  "LOADED STATE FROM BROWSER": "LOADED STATE FROM BROWSER",
+  "Autofire": "Autofire",
+  "SAVED STATE TO BROWSER": "SAVED STATE TO BROWSER"
 };
   const nativeJa = {
   "0": "0",
@@ -1914,7 +1925,10 @@
   "canvas": "表示画面",
   "retroarch": "RetroArch",
   "unlimited": "無制限",
-  "RetroArch Options": "RetroArchの設定"
+  "RetroArch Options": "RetroArchの設定",
+  "LOADED STATE FROM BROWSER": "ブラウザからステートを読み込みました",
+  "Autofire": "連射",
+  "SAVED STATE TO BROWSER": "ブラウザにステートを保存しました"
 };
   const systemsJa = {
   "NES / Famicom": "ファミコン／NES",
@@ -2043,7 +2057,10 @@
     onChange(callback) { listeners.add(callback); return () => listeners.delete(callback); },
     systemLabel(label) { return language === "ja" ? systemsJa[label] || label : label; },
     emulatorDictionary() { return language === "ja" ? nativeJa : nativeEn; },
-    emulatorLocale() { return language === "ja" ? "ja-JA" : "en-US"; }
+    emulatorLocale(version = "4.3.0-pre") {
+      if (/^(?:4\.[0-2](?:\.|$)|stable$)/i.test(version)) return language === "ja" ? "ja-JA" : "en-US";
+      return language === "ja" ? "ja" : "en";
+    }
   });
   window.addEventListener("languagechange", () => { if (mode === "auto") setLanguage("auto", false); });
   window.addEventListener("storage", event => { if (event.key === storageKey) setLanguage(event.newValue || "auto", false); });

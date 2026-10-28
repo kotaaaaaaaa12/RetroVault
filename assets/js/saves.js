@@ -72,7 +72,7 @@
       return {
         gameKey: this.gameKey,
         core: this.emulator?.getCore?.() || window.EJS_core || this.game.core,
-        emulatorVersion: this.emulator?.ejs_version || this.game.ejsVersion || "4.2.3"
+        emulatorVersion: this.emulator?.ejs_version || this.game.ejsVersion || "4.3.0-pre"
       };
     }
 

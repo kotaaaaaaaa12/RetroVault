@@ -158,7 +158,7 @@ const UPLOAD_CORE_OPTIONS = Object.freeze([
   ["crocods", "Amstrad CPC / CrocoDS"],
   ["prboom", "Doom / PrBoom"],
   ["same_cdi", "Philips CD-i"],
-  ["3ds", "Nintendo 3DS (nightly)"]
+  ["3ds", "Nintendo 3DS"]
 ]);
 
 // Extensions that identify one system with reasonable confidence.
@@ -381,8 +381,7 @@ function openLocalGame(file, core) {
     title: localGameTitle(file.name),
     localFilename: file.name,
     localSize: file.size,
-    core,
-    ejsVersion: core === "3ds" ? "nightly" : undefined
+    core
   };
 
   state.openGameId = game.id;

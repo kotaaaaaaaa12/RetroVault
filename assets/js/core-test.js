@@ -114,7 +114,7 @@
     version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "20261028-11",
+      appVersion: "20261028-12",
       mode: "standalone-core-test",
       emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },
@@ -143,12 +143,12 @@
     window.EJS_defaultOptions = { ejs_threads: "disabled" };
     window.EJS_startOnLoaded = false;
     window.EJS_DEBUG_XX = false;
-    window.EJS_language = i18n.emulatorLocale();
+    window.EJS_language = i18n.emulatorLocale(release);
     // The two pinned loaders use opposite checks for loading a language file.
     window.EJS_disableAutoLang = release === "4.2.3" ? false : true;
     if (i18n.language === "ja") {
       localeUrl = URL.createObjectURL(new Blob([JSON.stringify(i18n.emulatorDictionary())], { type: "application/json" }));
-      window.EJS_paths = { "ja-JA": localeUrl };
+      window.EJS_paths = { [window.EJS_language]: localeUrl };
     }
     window.EJS_ready = () => {
       report.phase = "waiting-for-start";

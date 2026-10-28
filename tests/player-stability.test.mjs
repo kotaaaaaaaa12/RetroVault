@@ -94,6 +94,7 @@ async function environment(source, options = {}) {
   window.sessionStorage = options.sessionStorage || storage();
   window.crossOriginIsolated = options.isolated !== false;
   window.indexedDB = options.indexedDB;
+  if (options.audioContext) window.AudioContext = options.audioContext;
   if (options.console) window.console = options.console;
   window.SharedArrayBuffer = SharedArrayBuffer;
   window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'] };
@@ -189,9 +190,9 @@ test('prerelease comparison loads its matching runtime with Japanese translation
   assert.equal(env.window.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.3.0-pre/data/');
   assert.equal(env.document.body.children.at(-1).src, env.window.EJS_pathtodata + 'loader.js');
   assert.equal(env.window.EJS_threads, false);
-  assert.equal(env.window.EJS_language, 'ja-JA');
+  assert.equal(env.window.EJS_language, 'ja');
   assert.equal(env.window.EJS_disableAutoLang, true);
-  assert.ok(env.window.EJS_paths['ja-JA'].startsWith('blob:'));
+  assert.ok(env.window.EJS_paths.ja.startsWith('blob:'));
   assert.match(env.window.EJS_gameName, /4\.3\.0-pre/);
   env.window.EJS_emulator = { ejs_version: '4.3.0-pre', getCore: () => 'fceumm', Module: { HEAPU8: new Uint8Array(64) } };
   env.window.EJS_onGameStart();
@@ -245,7 +246,65 @@ test('an explicit dataPath overrides the JSON version and ordinary games retain 
   const custom = await environment(playerSource, { games: [game] });
   assert.equal(custom.window.EJS_pathtodata, 'https://cores.example/custom/');
   const standard = await environment(playerSource);
-  assert.equal(standard.window.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.2.3/data/');
+  assert.equal(standard.window.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.3.0-pre/data/');
+});
+
+test('main player defaults to the tested prerelease while explicit legacy loaders keep their locale contract', async () => {
+  const current = await environment(playerSource, { browserLanguage: 'ja' });
+  assert.equal(current.document.body.children.at(-1).src, 'https://cdn.emulatorjs.org/4.3.0-pre/data/loader.js');
+  assert.equal(current.window.EJS_gameID, 1);
+  assert.equal(current.window.EJS_gameName, 'Test Game');
+  assert.equal(current.window.EJS_language, 'ja');
+  assert.equal(current.window.EJS_disableAutoLang, true);
+  assert.equal(JSON.parse(current.window.sessionStorage.getItem('retro-vault-diagnostics')).emulatorVersion, '4.3.0-pre');
+  for (const entry of [{ ...games[0], ejsVersion: '4.2.3' },
+    { ...games[0], ejsVersion: 'nightly', dataPath: 'https://cdn.emulatorjs.org/4.2.3/data/' }]) {
+    const legacy = await environment(playerSource, { browserLanguage: 'ja', games: [entry] });
+    assert.equal(legacy.window.EJS_disableAutoLang, false);
+    assert.equal(legacy.window.EJS_language, 'ja-JA');
+    assert.ok(legacy.window.EJS_paths['ja-JA']);
+    assert.equal(JSON.parse(legacy.window.sessionStorage.getItem('retro-vault-diagnostics')).emulatorVersion, '4.2.3');
+  }
+});
+
+test('library and local 3DS entries use the pinned prerelease with required threads', async () => {
+  const game = { ...games[0], core: '3ds', rom: 'game.3ds' };
+  const player = await environment(playerSource, { games: [game], search: '?id=1&threads=1' });
+  assert.equal(player.window.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.3.0-pre/data/');
+  assert.equal(player.window.EJS_threads, true);
+  const launcher = await environment(appSource);
+  vm.runInContext('openLocalGame(new File(["rom"], "game.3ds"), "3ds")', launcher.context);
+  assert.equal(vm.runInContext('state.localLaunch.game.ejsVersion', launcher.context), undefined);
+  assert.equal(new URL(launcher.elements.get('emulator-frame').src, launcher.window.location.origin).searchParams.get('threads'), '1');
+});
+
+test('private RWebAudio contexts are tracked without creating audio and close once on player shutdown', async () => {
+  let created = 0;
+  let closed = 0;
+  class AudioContext {
+    constructor() { created++; this.state = 'running'; }
+    close() { closed++; this.state = 'closed'; return Promise.resolve(); }
+  }
+  const env = await environment(playerSource, { audioContext: AudioContext });
+  assert.equal(created, 0);
+  const context = new env.window.AudioContext();
+  assert.ok(context instanceof AudioContext);
+  const emulator = { started: true, paused: false, isFastForward: false,
+    ejs_version: '4.3.0-pre', pause() {},
+    Module: {},
+    gameManager: { saveSaveFiles() {}, FS: { syncfs(populate, callback) { callback(null); } } }
+  };
+  env.window.EJS_emulator = emulator;
+  env.window.EJS_onGameStart();
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.runtimeVersion, '4.3.0-pre');
+  assert.equal(log.fastForward, false);
+  assert.deepEqual(log.environment.audioStates, ['running']);
+  emulator.Module.AL = { currentCtx: { audioCtx: context } };
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(closed, 1);
+  assert.equal(env.window.AudioContext, AudioContext);
+  assert.equal(created, 1);
 });
 
 test('errors, exit messages, backdrop taps, and Escape keep the game view open; CLOSE dismisses it', async () => {
@@ -364,10 +423,10 @@ test('both locale dictionaries cover every interface key used by scripts and mar
 test('the player uses the correct Japanese EmulatorJS locale and a bundled complete dictionary', async () => {
   const env = await environment(playerSource, { browserLanguage: 'en-US', search: '?id=1&lang=ja' });
   assert.equal(env.window.RetroI18n.language, 'ja');
-  assert.equal(env.window.EJS_language, 'ja-JA');
-  assert.equal(env.window.EJS_disableAutoLang, false);
+  assert.equal(env.window.EJS_language, 'ja');
+  assert.equal(env.window.EJS_disableAutoLang, true);
   assert.equal(env.window.EJS_threads, false);
-  const dictionary = await (await fetch(env.window.EJS_paths['ja-JA'])).json();
+  const dictionary = await (await fetch(env.window.EJS_paths.ja)).json();
   assert.equal(dictionary['Download Game Core'], 'ゲームコアをダウンロード');
   assert.equal(dictionary['Graphics Settings'], '映像設定');
   assert.equal(dictionary['Requires restart'], '再起動が必要');
@@ -388,7 +447,7 @@ test('native menus update without rebooting the emulator and unknown runtime err
   env.window.dispatch('message', { origin: env.window.location.origin, source: env.window.parent, data: { type: 'retro-vault-language', language: 'ja' } });
   assert.equal(env.window.EJS_emulator, emulator);
   assert.equal(text.nodeValue, '映像設定');
-  assert.equal(emulator.config.language, 'ja-JA');
+  assert.equal(emulator.config.language, 'ja');
   assert.equal(env.window.RetroI18n.translateEmulatorText('Core (再起動が必要)'), 'コア（再起動が必要）');
   assert.equal(env.window.RetroI18n.translateEmulatorText('fceumm region'), '地域');
   env.window.dispatch('error', { message: 'Some unfamiliar WASM error' });
@@ -572,7 +631,7 @@ async function saveEnvironment(options = {}) {
   const handlers = new Map();
   const calls = { states: 0, normal: 0, loaded: [], pauses: 0, plays: 0 };
   const emulator = {
-    started: true, paused: !!options.paused, ejs_version: '4.2.3',
+    started: true, paused: !!options.paused, ejs_version: options.emulatorVersion || '4.3.0-pre',
     getCore: () => 'fceumm',
     getBaseFileName: () => 'Test Game',
     elements: { parent: env.document.createElement('div'), menu: env.document.createElement('div') },
@@ -642,6 +701,22 @@ test('slot identity separates games and systems but survives local file timestam
   assert.equal(other.manager.slots.length, 0);
 });
 
+test('upgrading preserves legacy slots for export and rejects loading them into the new core version', async () => {
+  const legacy = await saveEnvironment({ emulatorVersion: '4.2.3', games: [{ ...games[0], ejsVersion: '4.2.3' }] });
+  await legacy.manager.run(() => legacy.manager.saveState(1));
+  const updated = await saveEnvironment({ indexedDB: legacy.indexedDB });
+  assert.equal(updated.manager.current().emulatorVersion, '4.3.0-pre');
+  assert.equal(updated.manager.slots.length, 1);
+  assert.equal(updated.manager.slots[0].emulatorVersion, '4.2.3');
+  await assert.rejects(updated.manager.loadState(1), { name: 'SaveStateMismatch' });
+  assert.equal(updated.calls.loaded.length, 0);
+  let exported;
+  updated.manager.download = (metadata, data) => { exported = { metadata, data }; };
+  await updated.manager.exportSlot(1);
+  assert.equal(exported.metadata.emulatorVersion, '4.2.3');
+  assert.deepEqual([...new Uint8Array(await exported.data.arrayBuffer())], [1, 2, 1]);
+});
+
 test('cancelled overwrites do not allocate another state and quota failures preserve the previous slot', async () => {
   const env = await saveEnvironment();
   await env.manager.run(() => env.manager.saveState(1));
@@ -696,7 +771,7 @@ test('backups round trip without base64 and reject other games, versions, and in
   await assert.rejects(env.manager.importFile(3, new File([wrongGame], 'wrong.rvstate')), { name: 'SaveStateMismatch' });
   env.emulator.ejs_version = '4.3.0';
   await assert.rejects(env.manager.loadState(2), { name: 'SaveStateMismatch' });
-  env.emulator.ejs_version = '4.2.3';
+  env.emulator.ejs_version = '4.3.0-pre';
   await assert.rejects(api.readBackup(new File(['bad'], 'bad.rvstate')), { name: 'InvalidStateBackup' });
   await assert.rejects(api.readBackup(new File([], 'empty.state')), { name: 'InvalidStateSize' });
   const corrupt = new Blob(['RVSTATE1\n', new Uint8Array([255, 255, 255, 255]), 'invalid']);

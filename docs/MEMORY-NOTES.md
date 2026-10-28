@@ -92,3 +92,36 @@ cores. The normal player is not upgraded by this change. Full matching loaders
 and cores are selected together and test save names are separated by release.
 The prerelease condition has not been played on a Safari device here and must
 not be presented as a confirmed fix. No site data or normal saves are cleared.
+
+
+## Main player update to 4.3.0-pre
+
+The later submitted v11 standalone report selected and reported runtime version
+4.3.0-pre, resolved `fceumm`, and reached a last game-elapsed sample of 325 seconds
+with 128 MiB current/peak WASM memory and no captured errors. The user reports
+that the reload stopped. This is evidence for that session and test configuration,
+not a verified root cause or proof across all cores.
+
+At the user's request v12 changes the main player's pinned default to that same
+release. The matching loader, modules, and cores share one versioned data path.
+Per-game overrides and legacy locale contracts remain supported. The main player
+still includes its save manager and iframe lifecycle, so its updated Safari
+integration needs device playback verification.
+
+The new RWebAudio context is private in upstream's JS library. A proxy around
+existing AudioContext constructors in the player iframe records contexts that
+the runtime creates; it does not create a context or request permission. Those
+contexts are included in bounded state diagnostics and deduplicated with legacy
+OpenAL contexts for explicit shutdown. Native constructors are restored on close.
+The existing pause, save-flush timeout, canvas release, and iframe teardown remain.
+
+Official source references:
+- https://github.com/EmulatorJS/EmulatorJS/releases/tag/v4.3.0-pre
+- https://github.com/EmulatorJS/EmulatorJS/blob/v4.3.0-pre/data/loader.js
+- https://github.com/EmulatorJS/EmulatorJS/blob/v4.3.0-pre/data/src/GameManager.js
+- https://github.com/EmulatorJS/RetroArch/blob/v1.22.2/emscripten/library_rwebaudio.js
+
+No FPS limit or gameplay-speed adjustment was added. The uploaded test log did
+not record measured frame rate. Original NTSC NES Mario normally runs near 60 fps;
+its TIME counter is not a real-seconds clock. The existing native speed controls
+remain available.
