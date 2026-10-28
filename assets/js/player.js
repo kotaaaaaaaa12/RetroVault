@@ -34,6 +34,82 @@ let cleanupPromise = null;
 let lastReportedError = "";
 let pausedForVisibility = false;
 let saveManager = null;
+let restoreConsoleDiagnostics = null;
+
+function errorContext(reason, source = "", event = {}) {
+  const context = { source: String(source || event.filename || "").slice(0, 250) };
+  try {
+    context.name = String(reason?.name || "").slice(0, 80);
+    context.stack = String(reason?.stack || "").slice(0, 1600);
+    if (Number.isFinite(reason?.code)) context.code = reason.code;
+  } catch {}
+  if (Number.isFinite(event.lineno)) context.line = event.lineno;
+  if (Number.isFinite(event.colno)) context.column = event.colno;
+  return context;
+}
+
+function diagnosticEnvironment() {
+  const environment = {
+    secureContext: window.isSecureContext === true,
+    crossOriginIsolated: window.crossOriginIsolated === true,
+    visibility: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+    framed: window.parent !== window,
+    userActivation: {
+      isActive: window.navigator?.userActivation?.isActive === true,
+      hasBeenActive: window.navigator?.userActivation?.hasBeenActive === true
+    },
+    audioStates: []
+  };
+  const contexts = new Set();
+  const audio = window.EJS_emulator?.Module?.AL;
+  if (audio?.currentCtx?.audioCtx) contexts.add(audio.currentCtx.audioCtx);
+  for (const entry of Object.values(audio?.contexts || {}).slice(0, 4)) {
+    if (entry?.audioCtx) contexts.add(entry.audioCtx);
+  }
+  for (const context of [...contexts].slice(0, 4)) environment.audioStates.push(String(context.state || "unknown").slice(0, 40));
+  try {
+    const policy = document.permissionsPolicy || document.featurePolicy;
+    if (policy?.features && policy?.allowsFeature) {
+      const features = new Set(policy.features());
+      environment.permissionsPolicy = {};
+      for (const feature of ["autoplay", "fullscreen", "gamepad", "microphone", "screen-wake-lock"]) {
+        environment.permissionsPolicy[feature] = features.has(feature) ? policy.allowsFeature(feature) : null;
+      }
+    }
+  } catch {}
+  return environment;
+}
+
+function installConsoleDiagnostics() {
+  if (restoreConsoleDiagnostics || !window.console) return;
+  const hooks = [];
+  for (const level of ["warn", "error"]) {
+    const original = window.console[level];
+    if (typeof original !== "function") continue;
+    const wrapped = function(...args) {
+      try {
+        const inputs = args.slice(0, 6);
+        const error = inputs.find(value => value && typeof value === "object" && typeof value.message === "string");
+        const detail = inputs.filter(value => typeof value === "string").map(value => value.slice(0, 250)).join(" ").slice(0, 750);
+        if (diagnostics && (error || /permission|denied|notallowed|failed to start|webgl|abort/i.test(detail))) {
+          const context = errorContext(error, "console." + level);
+          const item = { at: new Date().toISOString(), ...context, stack: context.stack.slice(0, 1000), detail: String(error?.message || detail).slice(0, 750), environment: diagnosticEnvironment() };
+          diagnostics.runtimeLog = [...(diagnostics.runtimeLog || []), item].slice(-3);
+          diagnostics.environment = diagnosticEnvironment();
+          persistDiagnostics();
+        }
+      } catch {}
+      return original.apply(this, args);
+    };
+    try { window.console[level] = wrapped; hooks.push({ level, original, wrapped }); } catch {}
+  }
+  restoreConsoleDiagnostics = () => {
+    for (const { level, original, wrapped } of hooks) {
+      try { if (window.console[level] === wrapped) window.console[level] = original; } catch {}
+    }
+    restoreConsoleDiagnostics = null;
+  };
+}
 
 function persistDiagnostics() {
   if (!diagnostics) return;
@@ -56,13 +132,14 @@ function sampleDiagnostics(phase) {
   if (phase) diagnostics.phase = phase;
   diagnostics.lastSampleAt = new Date().toISOString();
   diagnostics.elapsedSeconds = Math.round((Date.now() - diagnostics.startedAtMs) / 1000);
+  diagnostics.environment = diagnosticEnvironment();
   persistDiagnostics();
 }
 
 function beginDiagnostics(game, threads) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-5",
+    appVersion: "20261028-6",
     emulatorVersion: game.ejsVersion || DEFAULT_EJS_VERSION,
     game: { id: game.id, title: game.title, core: game.core },
     userAgent: String(window.navigator?.userAgent || "").slice(0, 500),
@@ -73,20 +150,23 @@ function beginDiagnostics(game, threads) {
     peakWasmHeapBytes: null,
     heapGrowthEvents: 0,
     errors: [],
+    runtimeLog: [],
+    startMode: "tap-in-player",
     memoryScope: "Core WebAssembly linear memory only; excludes browser, JavaScript, audio, and GPU memory."
   };
   sampleDiagnostics();
+  installConsoleDiagnostics();
   diagnosticTimer = setInterval(() => sampleDiagnostics(), 10000);
 }
 
-function reportPlayerError(key, values = {}) {
+function reportPlayerError(key, values = {}, context = {}) {
   if (playerClosing) return;
   if (key === "emulatorStopped" && displayedMessage?.isError) return;
-  const signature = key + JSON.stringify(values);
+  const signature = key + JSON.stringify(values) + String(context.name || "") + String(context.source || "");
   if (signature === lastReportedError) return;
   lastReportedError = signature;
   if (diagnostics) {
-    diagnostics.errors.push({ at: new Date().toISOString(), key, detail: String(values.message || t(key, values)).slice(0, 1200) });
+    diagnostics.errors.push({ at: new Date().toISOString(), key, detail: String(values.message || t(key, values)).slice(0, 1200), ...context, environment: diagnosticEnvironment() });
     diagnostics.errors = diagnostics.errors.slice(-4);
     sampleDiagnostics("error");
   }
@@ -102,8 +182,9 @@ function playerError(key, values = {}) {
 }
 
 function reportException(error, fallback) {
-  if (error?.i18nKey) reportPlayerError(error.i18nKey, error.i18nValues);
-  else if (error?.message) reportPlayerError("runtimeError", { message: error.message });
+  const context = errorContext(error, "player-boot");
+  if (error?.i18nKey) reportPlayerError(error.i18nKey, error.i18nValues, context);
+  else if (error?.message) reportPlayerError("runtimeError", { message: error.message }, context);
   else reportPlayerError(fallback);
 }
 
@@ -278,7 +359,8 @@ function startEmulator(game, gameUrl, requestedThreads) {
   window.EJS_gameUrl = gameUrl;
   window.EJS_core = core;
   window.EJS_pathtodata = dataPath;
-  window.EJS_startOnLoaded = true;
+  // A tap inside the player establishes interaction in the emulator document.
+  window.EJS_startOnLoaded = false;
   window.EJS_language = I18n.emulatorLocale();
   window.EJS_disableAutoLang = false;
   if (I18n.language === "ja") {
@@ -300,11 +382,16 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   window.EJS_ready = () => {
     if (playerClosing) return;
-    hideMessage();
+    if (!displayedMessage?.isError) showMessage("tapToStart");
+    sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
     syncEmulatorLanguage();
     // EmulatorJS 4.2.3 emits exit for both failures and explicit exits.
     if (typeof emulator?.on === "function") {
+      emulator.on("start-clicked", () => {
+        hideMessage();
+        sampleDiagnostics("loading-core");
+      });
       emulator.on("exit", () => {
         reportPlayerError("emulatorStopped");
       });
@@ -432,6 +519,7 @@ async function boot() {
 function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
+  restoreConsoleDiagnostics?.();
   saveManager?.stop();
   pausedForVisibility = false;
   if (diagnosticTimer !== null) clearInterval(diagnosticTimer);
@@ -525,14 +613,14 @@ document.addEventListener("visibilitychange", updateVisibility);
 window.addEventListener("error", event => {
   if (event.message) {
     console.error("Emulator runtime error:", event.message);
-    reportPlayerError("runtimeError", { message: event.message });
+    reportPlayerError("runtimeError", { message: event.message }, errorContext(event.error, event.filename || "window-error", event));
   }
 });
 
 window.addEventListener("unhandledrejection", event => {
   const reason = event.reason;
   console.error("Emulator promise rejection:", reason);
-  if (reason) reportPlayerError("runtimeError", { message: reason?.message || String(reason) });
+  if (reason) reportPlayerError("runtimeError", { message: reason?.message || String(reason) }, errorContext(reason, "unhandledrejection"));
   else reportPlayerError("unexpectedError");
 });
 

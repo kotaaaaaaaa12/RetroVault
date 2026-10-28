@@ -142,7 +142,13 @@
     "releaseFiveTitle": "Saves on this device",
     "releaseFiveSlots": "Added three persistent state slots with save times, import, export, and overwrite and deletion confirmations.",
     "releaseFiveSystem": "Made browser storage the default and changed the initial game save write interval to 30 seconds. Save times update after successful writes.",
-    "releaseFiveBackup": "Added state backup compatibility checks, earlier browser state import, and save controls in fullscreen mode."
+    "releaseFiveBackup": "Added state backup compatibility checks, earlier browser state import, and save controls in fullscreen mode.",
+    "tapToStart": "Tap Start Game inside the player to begin.",
+    "permissionDenied": "A permission-related operation was denied: {message} Save the diagnostic log to help identify the failed operation.",
+    "releaseSixTitle": "Manual start and startup diagnostics",
+    "releaseSixStart": "Replaced automatic startup with a Start Game tap inside the player.",
+    "releaseSixLog": "Added bounded error names, stack traces, source locations, and relevant browser state to the diagnostic log.",
+    "releaseSixConsole": "Recorded recent runtime warnings and errors that the emulator handles internally, without suppressing permission errors."
   },
   "ja": {
     "subtitle": "ゲームを選んでプレイ",
@@ -281,7 +287,13 @@
     "releaseFiveTitle": "端末内のセーブ管理",
     "releaseFiveSlots": "保存日時つきのステート用スロットを3つ追加しました。取り込み・書き出しと、上書き・削除前の確認に対応しています。",
     "releaseFiveSystem": "ブラウザ内保存を標準にし、ゲーム内セーブの書き込み間隔の初期値を30秒にしました。保存日時は書き込み成功後に更新します。",
-    "releaseFiveBackup": "バックアップの互換性チェック、以前のブラウザ保存の取り込み、全画面表示中のセーブ操作を追加しました。"
+    "releaseFiveBackup": "バックアップの互換性チェック、以前のブラウザ保存の取り込み、全画面表示中のセーブ操作を追加しました。",
+    "tapToStart": "プレイヤー内の「ゲームスタート」をタップして起動してください。",
+    "permissionDenied": "権限に関する処理が拒否されました：{message}。原因を確認するため、診断ログを保存してください。",
+    "releaseSixTitle": "開始操作と起動時の診断",
+    "releaseSixStart": "自動起動をやめ、プレイヤー内の「ゲームスタート」をタップして起動する形に変更しました。",
+    "releaseSixLog": "診断ログに、上限つきのエラー名・スタック・発生位置と、関連するブラウザの状態を追加しました。",
+    "releaseSixConsole": "エミュレーター内部で処理される最近の警告やエラーも記録します。権限エラーは非表示にせず表示します。"
   }
 };
   const nativeEn = {
@@ -1960,6 +1972,7 @@
 
   function errorText(value) {
     const text = String(value || "");
+    if (/permission\s+(?:was\s+)?denied|notallowederror/i.test(text)) return t("permissionDenied", { message: text.slice(0, 300) });
     if (/webgl|GLctx|graphics context/i.test(text)) return t("contextLost");
     if (/network|failed to fetch|load failed/i.test(text)) return t("networkError");
     const translated = translateEmulatorText(text);

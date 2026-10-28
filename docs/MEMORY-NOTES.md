@@ -26,6 +26,26 @@ Pinned source references:
 
 The latest session diagnostic is sampled every 10 seconds, on phase changes, and on captured errors. Only numeric heap length and small metadata are serialized. Errors are deduplicated and limited to the latest four entries, with bounded message lengths. The diagnostic download is local; it does not contact a logging service.
 
+The startup diagnostic update adds capped error names, stacks, source locations,
+and an environment snapshot for each captured error. It retains at most three
+relevant console warnings/errors, including internally handled exceptions.
+Console output is forwarded unchanged and the temporary hooks are restored on
+shutdown. The launcher accepts diagnostic records up to 32,000 characters. No
+memory buffer, screenshot, or save-state data is included in these records.
+
+User activation, document visibility, existing audio context states, and
+supported permission-policy flags are read without requesting permissions or
+opening extra audio or graphics contexts. These fields describe conditions;
+they do not prove that a particular API caused the failure. Safari's exact
+`Permission was denied` report is not attributed to audio, storage, or any
+other subsystem without a matching stack or call-site trace.
+
+Automatic startup is disabled. The user taps the native Start Game button in
+the emulator document, in line with the official `EJS_startOnLoaded` warning:
+https://emulatorjs.org/docs/options/#ejs_startonloaded
+This is a mitigation for the known user-interaction requirement, not a verified
+fix for the reported device failure. Existing saves are not cleared.
+
 `wasmHeapBytes` and `peakWasmHeapBytes` represent WebAssembly linear memory only. They exclude JavaScript, browser processes, audio, decoded thumbnails, canvas backing stores, GPU allocations, and other tabs. A flat heap therefore cannot establish that total memory is stable. Safari's own tab notification is outside the document and cannot be captured by the site's error listeners.
 
 If the page reloads, save the footer diagnostic JSON before starting another game. A new game replaces the previous session record. A manual close may record `saveFlush` as `saved`, `failed`, `timed-out`, or `not-needed`; the timeout is a recovery path, not a guarantee that a stalled core's latest SRAM reached storage.

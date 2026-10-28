@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0a0a0f">
   <title data-i18n="changelogPageTitle">Changelog | Retro Vault</title>
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-5">
-  <script src="/assets/js/i18n.js?v=20261028-5" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-5" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-6">
+  <script src="/assets/js/i18n.js?v=20261028-6" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-6" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -29,8 +29,17 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-6">
+      <div class="release-meta"><span>20261028-6</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-6" data-i18n="releaseSixTitle">Manual start and startup diagnostics</h2>
+      <ul>
+        <li data-i18n="releaseSixStart">Replaced automatic startup with a Start Game tap inside the player.</li>
+        <li data-i18n="releaseSixLog">Added bounded error names, stack traces, source locations, and relevant browser state to the diagnostic log.</li>
+        <li data-i18n="releaseSixConsole">Recorded recent runtime warnings and errors that the emulator handles internally, without suppressing permission errors.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-5">
-      <div class="release-meta"><span>20261028-5</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-5</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-5" data-i18n="releaseFiveTitle">Saves on this device</h2>
       <ul>
         <li data-i18n="releaseFiveSlots">Added three persistent state slots with save times, import, export, and overwrite and deletion confirmations.</li>

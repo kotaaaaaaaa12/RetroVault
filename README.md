@@ -2,6 +2,20 @@
 
 A small JSON-driven EmulatorJS game library.
 
+After choosing a game, tap **Start Game** inside the player. Automatic startup
+is disabled so the emulator document receives a direct user interaction. This
+follows the official `EJS_startOnLoaded` guidance, which warns that automatic
+startup can freeze before the page has received user interaction. This change
+is a startup mitigation, not proof of the cause of a Safari permission failure.
+
+If startup reports **Permission was denied**, close the player and use **Save
+diagnostic log** in the footer before opening another game. The local JSON now
+includes bounded error names, stacks, source locations, relevant permission
+policy flags, user activation, visibility, and existing audio context states.
+Recent internally handled runtime warnings and errors are also retained. No
+additional permissions are requested and no errors are hidden. Send the JSON
+with the affected system and game name to investigate the actual failing call.
+
 ## Project layout
 
 ```text

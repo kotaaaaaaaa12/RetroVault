@@ -93,6 +93,7 @@ async function environment(source, options = {}) {
   window.sessionStorage = options.sessionStorage || storage();
   window.crossOriginIsolated = options.isolated !== false;
   window.indexedDB = options.indexedDB;
+  if (options.console) window.console = options.console;
   window.SharedArrayBuffer = SharedArrayBuffer;
   window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'] };
   window.location = { origin: 'https://retro.example', search: options.search || '?id=1' };
@@ -107,7 +108,7 @@ async function environment(source, options = {}) {
     return id;
   };
   const context = vm.createContext({
-    window, document, URL, URLSearchParams, Blob, File, TextEncoder, TextDecoder, console,
+    window, document, URL, URLSearchParams, Blob, File, TextEncoder, TextDecoder, console: options.console || console,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id),
@@ -699,4 +700,84 @@ test('the save panel preserves a manual pause, and storage errors still allow a 
   await waitFor(() => !env.manager.busy);
   assert.equal(env.manager.status.key, 'backupReady');
   assert.equal(env.calls.states, 1);
+});
+
+test('startup waits for a tap in the player and records the native start phases', async () => {
+  const env = await environment(playerSource);
+  assert.equal(env.window.EJS_startOnLoaded, false);
+  const events = new Map();
+  env.window.EJS_emulator = { on: (name, callback) => events.set(name, callback) };
+  env.window.EJS_ready();
+  assert.match(env.elements.get('player-message').textContent, /Tap Start Game/);
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).phase, 'waiting-for-start');
+  events.get('start-clicked')();
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).phase, 'loading-core');
+  env.window.EJS_onGameStart();
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).phase, 'running');
+});
+
+test('permission errors retain their name, bounded stack, location, and environment without being suppressed', async () => {
+  const env = await environment(playerSource, { browserLanguage: 'ja' });
+  env.window.navigator.userActivation = { isActive: false, hasBeenActive: true };
+  env.document.visibilityState = 'visible';
+  env.window.EJS_emulator = { Module: { AL: { currentCtx: { audioCtx: { state: 'suspended' } } } } };
+  const reason = Object.assign(new Error('Permission was denied.'), { name: 'NotAllowedError', stack: 'failedCall@core.js:10:2\n' + 'x'.repeat(5000) });
+  env.window.dispatch('error', { error: reason, message: reason.message, filename: 'https://cdn.example/core.js', lineno: 10, colno: 2 });
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  const failure = log.errors.at(-1);
+  assert.equal(failure.name, 'NotAllowedError');
+  assert.equal(failure.source, 'https://cdn.example/core.js');
+  assert.equal(failure.line, 10);
+  assert.equal(failure.column, 2);
+  assert.equal(failure.stack.length, 1600);
+  assert.deepEqual(failure.environment.audioStates, ['suspended']);
+  assert.equal(failure.environment.userActivation.hasBeenActive, true);
+  assert.match(env.elements.get('player-message').textContent, /権限/);
+  assert.match(env.posts.at(-1).message, /Permission was denied/);
+  env.window.dispatch('unhandledrejection', { reason });
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).errors.at(-1).source, 'unhandledrejection');
+});
+
+test('internally handled exceptions are captured without changing console output and hooks restore on close', async () => {
+  const calls = [];
+  const originalWarn = (...args) => { calls.push(args); return 'forwarded'; };
+  const originalError = (...args) => { calls.push(args); };
+  const logger = { warn: originalWarn, error: originalError, log() {}, debug() {} };
+  const env = await environment(playerSource, { console: logger });
+  const reason = Object.assign(new Error('Permission was denied.'), { name: 'NotAllowedError', stack: 'runtime.js\n' + 'x'.repeat(4000) });
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(logger.warn('Failed to start game', reason), 'forwarded');
+  }
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(calls.length, 5);
+  assert.equal(calls[0][1], reason);
+  assert.equal(log.runtimeLog.length, 3);
+  assert.equal(log.runtimeLog.at(-1).name, 'NotAllowedError');
+  assert.equal(log.runtimeLog.at(-1).stack.length, 1000);
+  assert.equal(log.runtimeLog.at(-1).source, 'console.warn');
+  logger.warn('An unrelated notice');
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).runtimeLog.length, 3);
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(logger.warn, originalWarn);
+  assert.equal(logger.error, originalError);
+});
+
+test('expanded diagnostics remain bounded and downloadable through the launcher after failure', async () => {
+  const sessionStorage = storage();
+  const logger = { warn() {}, error() {}, log() {}, debug() {} };
+  const env = await environment(playerSource, { sessionStorage, console: logger });
+  for (let index = 0; index < 8; index += 1) {
+    const reason = Object.assign(new Error('Permission was denied. ' + index + 'x'.repeat(10000)), { name: 'NotAllowedError', stack: 'core.js\n' + 'x'.repeat(20000) });
+    env.window.dispatch('error', { error: reason, message: reason.message, filename: 'https://example.com/' + 'x'.repeat(2000), lineno: index });
+  }
+  const raw = sessionStorage.getItem('retro-vault-diagnostics');
+  assert.ok(raw.length < 32000);
+  const log = JSON.parse(raw);
+  assert.equal(log.errors.length, 4);
+  assert.equal(log.runtimeLog.length, 3);
+  assert.ok(log.errors.every(item => item.detail.length <= 1200 && item.stack.length <= 1600 && item.source.length <= 250));
+  const app = await environment(appSource, { sessionStorage });
+  assert.equal(app.elements.get('diagnostics-download').hidden, false);
+  assert.equal(vm.runInContext('readDiagnostics().startMode', app.context), 'tap-in-player');
+  await vm.runInContext('shutdownPlayer()', env.context);
 });

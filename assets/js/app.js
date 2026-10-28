@@ -870,7 +870,7 @@ I18n.onChange(() => {
 function readDiagnostics() {
   try {
     const value = window.sessionStorage.getItem("retro-vault-diagnostics");
-    if (!value || value.length > 16000) return null;
+    if (!value || value.length > 32000) return null;
     const parsed = JSON.parse(value);
     return parsed?.schemaVersion === 1 ? parsed : null;
   } catch { return null; }
