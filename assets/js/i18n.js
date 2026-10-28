@@ -180,7 +180,12 @@
     "releaseTwelveTitle": "Main player update to EmulatorJS 4.3.0-pre",
     "releaseTwelveVersion": "Made the same pinned 4.3.0-pre runtime used in the successful NES comparison the default for the main player. Explicit per-game version and data-path settings remain supported.",
     "releaseTwelveLocale": "Updated native Japanese locale loading for the new loader and added its remaining menu translations. Explicit older versions retain the legacy language-loading settings.",
-    "releaseTwelveSaves": "Preserved game save names and stored state slots, retained version compatibility checks, and added cleanup for audio contexts created by the new runtime. Local 3DS files now use the same pinned default."
+    "releaseTwelveSaves": "Preserved game save names and stored state slots, retained version compatibility checks, and added cleanup for audio contexts created by the new runtime. Local 3DS files now use the same pinned default.",
+    "releaseThirteenTitle": "Prevent automatic phone links",
+    "releaseThirteenNumbers": "Disabled automatic phone-number detection in Safari on all site pages so release identifiers remain plain text.",
+    "releaseFourteenTitle": "Controller translations and startup layout",
+    "releaseFourteenPort": "Translated Controller Port Devices and numbered port labels in the Japanese emulator settings.",
+    "releaseFourteenStart": "Removed the extra startup instruction over the main player so it does not cover the native Start Game button."
   },
   "ja": {
     "subtitle": "ゲームを選んでプレイ",
@@ -357,7 +362,12 @@
     "releaseTwelveTitle": "通常プレイヤーをEmulatorJS 4.3.0-preに更新",
     "releaseTwelveVersion": "NES比較テストで動作を確認した固定版4.3.0-preを、通常プレイヤーの初期設定にも採用しました。JSONで指定したゲーム別のバージョンや読み込み先も引き続き使えます。",
     "releaseTwelveLocale": "新しいローダーに合わせて日本語辞書の読み込みを変更し、追加メニューの翻訳を補いました。明示的に旧版を指定した場合は旧版用の言語設定を使います。",
-    "releaseTwelveSaves": "ゲーム内セーブの名前と保存済みスロットを維持し、バージョンの一致確認も継続します。新しい実行環境が作る音声コンテキストの終了処理を追加しました。端末内の3DSファイルも同じ固定版を使います。"
+    "releaseTwelveSaves": "ゲーム内セーブの名前と保存済みスロットを維持し、バージョンの一致確認も継続します。新しい実行環境が作る音声コンテキストの終了処理を追加しました。端末内の3DSファイルも同じ固定版を使います。",
+    "releaseThirteenTitle": "電話番号の自動リンクを防止",
+    "releaseThirteenNumbers": "全ページでSafariの電話番号自動検出を無効にし、リリース番号を通常の文字として表示するようにしました。",
+    "releaseFourteenTitle": "接続機器の翻訳と起動画面の配置",
+    "releaseFourteenPort": "日本語のエミュレーター設定で、Controller Port Devicesと番号付きポート名を翻訳しました。",
+    "releaseFourteenStart": "通常プレイヤーに重ねていた開始案内を削除し、標準のゲームスタートボタンを隠さないようにしました。"
   }
 };
   const nativeEn = {
@@ -1143,7 +1153,9 @@
   "RetroArch Options": "RetroArch Options",
   "LOADED STATE FROM BROWSER": "LOADED STATE FROM BROWSER",
   "Autofire": "Autofire",
-  "SAVED STATE TO BROWSER": "SAVED STATE TO BROWSER"
+  "SAVED STATE TO BROWSER": "SAVED STATE TO BROWSER",
+  "Controller Port Devices": "Controller Port Devices",
+  "Port": "Port"
 };
   const nativeJa = {
   "0": "0",
@@ -1928,7 +1940,9 @@
   "RetroArch Options": "RetroArchの設定",
   "LOADED STATE FROM BROWSER": "ブラウザからステートを読み込みました",
   "Autofire": "連射",
-  "SAVED STATE TO BROWSER": "ブラウザにステートを保存しました"
+  "SAVED STATE TO BROWSER": "ブラウザにステートを保存しました",
+  "Controller Port Devices": "コントローラーポートの機器",
+  "Port": "ポート"
 };
   const systemsJa = {
   "NES / Famicom": "ファミコン／NES",
@@ -2031,7 +2045,7 @@
     if (key) return text.replace(clean, dictionary[key] ?? key);
     for (const [original, translated] of nativeEntries) {
       const source = language === "ja" ? original : translated;
-      if (source.length < 4 || !clean.startsWith(source)) continue;
+      if (Math.max(original.length, translated.length) < 4 || !clean.startsWith(source)) continue;
       const tail = clean.slice(source.length);
       if (tail && /^[\s\d.%:/()+-]+$/.test(tail)) {
         return text.replace(clean, (language === "ja" ? translated : original) + tail);

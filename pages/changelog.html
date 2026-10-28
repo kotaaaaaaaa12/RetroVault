@@ -2,15 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="format-detection" content="telephone=no">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0a0a0f">
   <title data-i18n="changelogPageTitle">Changelog | Retro Vault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-12">
-  <script src="/assets/js/i18n.js?v=20261028-12" defer></script>
-  <script src="/assets/js/changelog.js?v=20261028-12" defer></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261028-14">
+  <script src="/assets/js/i18n.js?v=20261028-14" defer></script>
+  <script src="/assets/js/changelog.js?v=20261028-14" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -32,8 +33,23 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-14">
+      <div class="release-meta"><span>20261028-14</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-14" data-i18n="releaseFourteenTitle">Controller translations and startup layout</h2>
+      <ul>
+        <li data-i18n="releaseFourteenPort">Translated Controller Port Devices and numbered port labels in the Japanese emulator settings.</li>
+        <li data-i18n="releaseFourteenStart">Removed the extra startup instruction over the main player so it does not cover the native Start Game button.</li>
+      </ul>
+    </article>
+    <article class="release" aria-labelledby="release-13">
+      <div class="release-meta"><span>20261028-13</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <h2 id="release-13" data-i18n="releaseThirteenTitle">Prevent automatic phone links</h2>
+      <ul>
+        <li data-i18n="releaseThirteenNumbers">Disabled automatic phone-number detection in Safari on all site pages so release identifiers remain plain text.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-12">
-      <div class="release-meta"><span>20261028-12</span><time datetime="2026-10-28">2026-10-28</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261028-12</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-12" data-i18n="releaseTwelveTitle">Main player update to EmulatorJS 4.3.0-pre</h2>
       <ul>
         <li data-i18n="releaseTwelveVersion">Made the same pinned 4.3.0-pre runtime used in the successful NES comparison the default for the main player. Explicit per-game version and data-path settings remain supported.</li>

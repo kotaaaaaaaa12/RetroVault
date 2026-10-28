@@ -194,7 +194,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261028-12",
+    appVersion: "20261028-14",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -446,7 +446,8 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   window.EJS_ready = () => {
     if (playerClosing) return;
-    if (!displayedMessage?.isError) showMessage("tapToStart");
+    // The native Start Game button is the startup instruction.
+    if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
     syncEmulatorLanguage();

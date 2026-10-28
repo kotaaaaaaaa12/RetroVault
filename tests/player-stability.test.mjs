@@ -459,6 +459,31 @@ test('native menus update without rebooting the emulator and unknown runtime err
   assert.match(env.elements.get('player-message').textContent, /unfamiliar/);
 });
 
+test('controller port labels translate in native menus and switch back without altering their numbers', async () => {
+  const env = await environment(playerSource);
+  const heading = { nodeType: 3, nodeValue: 'Controller Port Devices' };
+  const port = { nodeType: 3, nodeValue: 'Port 2' };
+  env.elements.get('game').append(heading, port);
+  env.window.RetroI18n.setLanguage('ja');
+  assert.equal(heading.nodeValue, 'コントローラーポートの機器');
+  assert.equal(port.nodeValue, 'ポート 2');
+  assert.equal(env.window.RetroI18n.emulatorDictionary()['Controller Port Devices'], heading.nodeValue);
+  env.window.RetroI18n.setLanguage('en');
+  assert.equal(heading.nodeValue, 'Controller Port Devices');
+  assert.equal(port.nodeValue, 'Port 2');
+});
+
+test('ready leaves startup guidance hidden and preserves a previously reported error', async () => {
+  const env = await environment(playerSource);
+  env.window.EJS_ready();
+  assert.equal(env.elements.get('player-message').classList.contains('hidden'), true);
+  assert.equal(env.window.EJS_startOnLoaded, false);
+  env.window.dispatch('error', { message: 'Startup failure' });
+  env.window.EJS_ready();
+  assert.equal(env.elements.get('player-message').classList.contains('hidden'), false);
+  assert.match(env.elements.get('player-message').textContent, /Startup failure/);
+});
+
 test('local ROM selection and reload notices are localized', async () => {
   const env = await environment(appSource, { browserLanguage: 'ja' });
   vm.runInContext('showCorePicker(new File(["rom"], "disc.bin"), ["psx"], ".bin")', env.context);
@@ -859,7 +884,7 @@ test('startup waits for a tap in the player and records the native start phases'
   const events = new Map();
   env.window.EJS_emulator = { on: (name, callback) => events.set(name, callback) };
   env.window.EJS_ready();
-  assert.match(env.elements.get('player-message').textContent, /Tap Start Game/);
+  assert.equal(env.elements.get('player-message').classList.contains('hidden'), true);
   assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).phase, 'waiting-for-start');
   events.get('start-clicked')();
   assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).phase, 'loading-core');

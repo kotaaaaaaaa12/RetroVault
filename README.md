@@ -43,6 +43,21 @@ player shutdown as well as legacy OpenAL contexts. The iframe is then unloaded.
 The log now includes the available runtime version and fast-forward/slow-motion
 flags. No frame-rate cap or Mario timer modification is introduced.
 
+## Startup and controller labels
+
+The main player uses the native **Start Game** button without an extra startup
+instruction layered over the game area. Runtime errors still use the existing
+message display. The comparison page keeps its status paragraph outside its game
+container. The Japanese dictionary includes **Controller Port Devices** and
+numbered **Port** labels, including live language changes.
+
+## Release identifier display
+
+Every HTML page sets `format-detection` to `telephone=no`. This disables Safari's
+automatic phone linking for strings such as `20261028-10` without changing the
+release identifiers themselves. Explicit links, including the official EmulatorJS
+footer link, remain regular anchors.
+
 ## Same-site NES comparison
 
 The next comparison defaults to **4.3.0-pre**. The earlier **4.2.3** condition is

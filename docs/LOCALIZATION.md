@@ -19,3 +19,7 @@ Core option label references:
 The default 4.3.0-pre player uses the short locale identifier `ja` and its loader language-fetch setting. Explicit 4.0–4.2 or stable loader paths retain the legacy `ja-JA` locale and older switch semantics. The shared dictionary includes the new Autofire and browser-state status labels. The loader receives a JSON object URL from the bundled dictionary. New native UI nodes and existing menu labels are localized without reloading the emulator. Matching changes display text and accessibility labels only; stored setting values are preserved.
 
 Game titles, ROM filenames, product names, technical identifiers, and original license documents are not rewritten. Text rendered inside a game is part of the ROM and is not translated by the website.
+
+The native dictionary also translates `Controller Port Devices` and `Port`.
+Numbered port labels such as `Port 1` retain their numeric suffix during live
+language changes. Device IDs and stored controller settings are not changed.
