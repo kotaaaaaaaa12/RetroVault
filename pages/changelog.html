@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261029-25">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261029-25">
-  <script src="/assets/js/i18n.js?v=20261029-25" defer></script>
-  <script src="/assets/js/changelog.js?v=20261029-25" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261029-26">
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261029-26">
+  <script src="/assets/js/i18n.js?v=20261029-26" defer></script>
+  <script src="/assets/js/changelog.js?v=20261029-26" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,16 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-26">
+      <div class="release-meta"><span>20261029-26</span><time datetime="2026-10-29">2026-10-29</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-26" data-i18n="releaseTwentySixTitle">Direct local ROM loading and request diagnostics</h2>
+      <ul>
+        <li data-i18n="releaseTwentySixLocal">Local ROMs are passed as named File objects, matching the official demo and avoiding a blob URL fetch. Local save identities remain unchanged.</li>
+        <li data-i18n="releaseTwentySixDiagnostics">Diagnostics include local ROM size and read failures, plus a bounded list of requested resources and HTTP failures. The supplied Safari 3DS log did not identify the failing resource; this change does not establish that its startup failure is resolved.</li>
+      </ul>
+    </article>
     <article class="release" aria-labelledby="release-25">
-      <div class="release-meta"><span>20261029-25</span><time datetime="2026-10-29">2026-10-29</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261029-25</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-25" data-i18n="releaseTwentyFiveTitle">File storage categories</h2>
       <ul><li data-i18n="releaseTwentyFiveFiles">File storage is grouped into expandable ROM, thumbnail, BIOS, and patch categories. Headings show file counts and completed sizes. Open categories stay open after updates and language changes.</li></ul>
     </article>

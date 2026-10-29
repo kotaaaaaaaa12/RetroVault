@@ -7,6 +7,7 @@ import { MemoryIndexedDB } from './support/memory-indexeddb.mjs';
 const appSource = await readFile(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const playerSource = await readFile(new URL('../assets/js/player.js', import.meta.url), 'utf8');
 const runtimeSupportSource = await readFile(new URL('../assets/js/runtime-support.js', import.meta.url), 'utf8');
+const resourceDiagnosticsSource = await readFile(new URL('../assets/js/resource-diagnostics.js', import.meta.url), 'utf8');
 const coreTestSource = await readFile(new URL('../assets/js/core-test.js', import.meta.url), 'utf8');
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
@@ -122,6 +123,7 @@ async function environment(source, options = {}) {
   });
   vm.runInContext(i18nSource, context);
   vm.runInContext(runtimeSupportSource, context);
+  vm.runInContext(resourceDiagnosticsSource, context);
   if (options.loadSaves) {
     vm.runInContext(saveStorageSource, context);
     vm.runInContext(savesSource, context);
@@ -288,6 +290,70 @@ test('library and local 3DS entries use the pinned prerelease with required thre
   vm.runInContext('openLocalGame(new File(["rom"], "game.3ds"), "3ds")', launcher.context);
   assert.equal(vm.runInContext('state.localLaunch.game.ejsVersion', launcher.context), undefined);
   assert.equal(new URL(launcher.elements.get('emulator-frame').src, launcher.window.location.origin).searchParams.get('threads'), '1');
+});
+
+test('local ROMs reach the runtime as named Files without a blob URL round trip or a pre-read', async () => {
+  for (const source of [new File(['rom'], 'local game.3ds'), new Blob(['rom'])]) {
+    const player = await environment(playerSource, { search: '?mode=local&threads=1' });
+    const file = source instanceof File ? source : null;
+    const originalRead = file?.arrayBuffer;
+    player.window.dispatch('message', { origin: player.window.location.origin, source: player.window.parent,
+      data: { type: 'retro-vault-local-rom', file: source, game: { id: 1234567890, title: 'Local game', core: '3ds', localFilename: 'local game.3ds' } } });
+    const runtimeFile = player.window.EJS_gameUrl;
+    assert.ok(runtimeFile instanceof File);
+    assert.equal(runtimeFile.name, 'local game.3ds');
+    assert.equal(runtimeFile.size, 3);
+    let log = JSON.parse(player.window.sessionStorage.getItem('retro-vault-diagnostics'));
+    assert.equal(log.localRom.readState, 'waiting');
+    assert.equal(log.localRom.readAttempts, 0);
+    assert.equal(Buffer.from(await runtimeFile.arrayBuffer()).toString(), 'rom');
+    log = JSON.parse(player.window.sessionStorage.getItem('retro-vault-diagnostics'));
+    assert.equal(log.localRom.readState, 'read');
+    assert.equal(log.localRom.readBytes, 3);
+    assert.equal(log.localRom.extension, '3ds');
+    assert.equal(log.localRom.size, 3);
+    await vm.runInContext('shutdownPlayer()', player.context);
+    assert.equal(player.window.EJS_gameUrl, '');
+    if (file) assert.equal(file.arrayBuffer, originalRead);
+  }
+});
+
+test('resource diagnostics identify failed requests without secrets, data copies, or changing responses and rejections', async () => {
+  const env = await environment(playerSource);
+  const failure = new TypeError('Load failed');
+  const response = { ok: false, status: 404 };
+  const original = async input => {
+    if (String(input).includes('failed')) throw failure;
+    return response;
+  };
+  env.window.fetch = original;
+  const support = new env.window.RetroResourceDiagnostics({});
+  assert.equal(await env.window.fetch('https://user:password@cdn.example/core.wasm?token=secret#private'), response);
+  await assert.rejects(env.window.fetch('https://cdn.example/failed.data?key=secret'), error => error === failure);
+  assert.equal(support.requests[0].resource, 'https://cdn.example/core.wasm');
+  assert.equal(support.requests[0].status, 404);
+  assert.equal(support.requests[0].outcome, 'http-error');
+  assert.equal(support.requests[1].resource, 'https://cdn.example/failed.data');
+  assert.equal(support.requests[1].outcome, 'failed');
+  assert.equal(support.describe('blob:https://retro.example/private-token'), 'blob:[local]');
+  assert.equal(support.describe('data:application/octet-stream;base64,private'), 'data:[local]');
+  assert.doesNotMatch(JSON.stringify(support.requests), /password|secret|token/);
+  for (let index = 0; index < 20; index++) await env.window.fetch('https://cdn.example/core-' + index);
+  assert.equal(support.requests.length, 12);
+  const file = new File(['rom'], 'test.3ds');
+  const readFailure = new DOMException('File unavailable.', 'NotReadableError');
+  const read = () => Promise.reject(readFailure);
+  Object.defineProperty(file, 'arrayBuffer', { configurable: true, writable: true, value: read });
+  let reported;
+  support.onReadFailure = error => { reported = error; };
+  support.trackFile(file);
+  await assert.rejects(file.arrayBuffer(), error => error === readFailure);
+  assert.equal(support.localRom.readState, 'failed');
+  assert.equal(support.localRom.errorName, 'NotReadableError');
+  assert.equal(reported, readFailure);
+  support.stop();
+  assert.equal(env.window.fetch, original);
+  assert.equal(file.arrayBuffer, read);
 });
 
 test('private RWebAudio contexts are tracked without creating audio and close once on player shutdown', async () => {

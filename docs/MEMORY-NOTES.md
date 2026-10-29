@@ -2,6 +2,31 @@
 
 Reviewed on 2026-10-28. This is a source review and a set of mitigations; it is not a device-level measurement of the reported Safari reload.
 
+## Local 3DS startup report (2026-10-29)
+
+The supplied v25 Safari log reports `Load failed`, followed by `Network Error`,
+before any game-start event. Threads and cross-origin isolation were enabled.
+The core reported a 512 MiB linear heap without recorded growth. The log does
+not contain the failing URL or ROM size, and cannot establish a memory failure,
+a corrupt ROM, a missing core resource, or a failed local file read.
+
+The launcher previously passed a local `blob:` URL. The pinned 4.3.0-pre
+frontend routes non-HTTP URLs through `fetch()`, while its named `File` path
+reads the file directly and preserves the filename. Local launches now use that
+File path, as in the official demo. This removes the blob-fetch step but does
+not prove the reporting 3DS game will start on Safari.
+
+Request diagnostics record up to 12 recent fetch requests, response status or
+failure, and duration. URL credentials, query strings, fragments, and blob/data
+contents are omitted. A response entry describes received headers, not completed
+body consumption. Local file diagnostics record size, extension, and the native
+`arrayBuffer()` read outcome without pre-reading or copying the ROM. Hooks are
+restored on shutdown. No commercial ROM was used for local regression checks.
+
+Sources:
+- https://github.com/EmulatorJS/EmulatorJS/blob/main/index.html
+- https://cdn.emulatorjs.org/4.3.0-pre/data/emulator.min.js
+
 ## Mobile startup failure and input report
 
 A supplied 4.3.0-pre diagnostic recorded a TypeError reading

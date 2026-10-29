@@ -23,7 +23,7 @@ const CORE_ALIASES = Object.freeze({
 });
 
 const message = document.getElementById("player-message");
-let localObjectUrl = "";
+let resourceDiagnostics = null;
 let emulatorStarted = false;
 let playerClosing = false;
 let displayedMessage = null;
@@ -179,6 +179,10 @@ function sampleDiagnostics(phase) {
     diagnostics.input = runtimeSupport.snapshot();
     diagnostics.operationFailures = runtimeSupport.failures;
   }
+  if (resourceDiagnostics) {
+    diagnostics.requests = resourceDiagnostics.requests;
+    if (resourceDiagnostics.localRom) diagnostics.localRom = resourceDiagnostics.localRom;
+  }
   const emulator = window.EJS_emulator;
   if (typeof emulator?.ejs_version === "string") diagnostics.runtimeVersion = emulator.ejs_version.slice(0, 80);
   if (emulator?.started) {
@@ -202,7 +206,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261029-25",
+    appVersion: "20261029-26",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -457,6 +461,13 @@ function startEmulator(game, gameUrl, requestedThreads) {
   configureOptionalOptions(game);
   clearSavedThreadOverride(game);
   beginDiagnostics(game, threads, loaderVersion);
+  if (typeof window.RetroResourceDiagnostics === "function") {
+    resourceDiagnostics = new window.RetroResourceDiagnostics({
+      onChange: () => sampleDiagnostics(),
+      onReadFailure: error => reportPlayerError("localReadError", {}, errorContext(error, "File.arrayBuffer"))
+    });
+    if (gameUrl instanceof File) resourceDiagnostics.trackFile(gameUrl);
+  }
   if (typeof window.RetroRuntimeSupport === "function") {
     runtimeSupport = new window.RetroRuntimeSupport({
       contexts: existingAudioContexts,
@@ -498,10 +509,6 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (diagnostics && diagnostics.gameStartedAtMs === null) diagnostics.gameStartedAtMs = Date.now();
     sampleDiagnostics("running");
     saveManager?.start();
-    if (localObjectUrl) {
-      URL.revokeObjectURL(localObjectUrl);
-      localObjectUrl = "";
-    }
     updateVisibility();
     notifyParent("retro-vault-player-start", { savesAvailable: !!saveManager });
   };
@@ -572,9 +579,11 @@ function bootLocalGame(requestedThreads) {
         throw playerError("localReadError");
       }
 
-      localObjectUrl = URL.createObjectURL(file);
+      // The pinned runtime supports File input, as used by the official demo.
+      // Keep the original extension and avoid fetching a local blob URL.
+      const rom = file instanceof File ? file : new File([file], game.localFilename || "game.rom", { type: file.type });
       hideMessage();
-      startEmulator(game, localObjectUrl, requestedThreads);
+      startEmulator(game, rom, requestedThreads);
     } catch (error) {
       console.error(error);
 
@@ -664,9 +673,9 @@ function shutdownPlayer(reason = "close") {
       emulator.canvas.height = 1;
     }
     if (localeObjectUrl) URL.revokeObjectURL(localeObjectUrl);
-    if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
     localeObjectUrl = "";
-    localObjectUrl = "";
+    resourceDiagnostics?.stop();
+    window.EJS_gameUrl = "";
     if (diagnostics) {
       diagnostics.closeReason = reason;
       diagnostics.saveFlush = saveFlush;

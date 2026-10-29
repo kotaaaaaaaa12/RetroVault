@@ -107,6 +107,11 @@ diagnostic-log download when a log is available. Management is linked from the
 header instead. Auto, English, and Japanese localization is shared across pages.
 Safari phone-number detection is disabled on HTML pages.
 
+Local ROMs are passed directly as named `File` objects to the pinned runtime,
+without a local blob URL download or an extra pre-read. Existing local game and
+save identities remain unchanged. If startup fails, export the diagnostic log;
+it includes the local read state and size, plus recent resource request failures.
+
 The library header places search, language, and local ROM controls at the upper
 right. System filters show counts for the full published library. The bottom
 summary shows the filtered game count and sum of each displayed entry's ROM bytes,
