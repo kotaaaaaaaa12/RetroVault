@@ -3,6 +3,40 @@
 A public EmulatorJS library with browser saves and password-protected management,
 served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
+## Site versions
+
+The current Retro Vault release is **2.10.1**. Site releases use
+`major.minor.patch`: increment the patch for fixes, the minor for compatible
+features, and the major for incompatible changes. Update `version.txt`, the root
+package and lockfile versions, diagnostic `appVersion` values, asset query
+versions (including the local ROM reader worker), and the changelog together.
+The EmulatorJS runtime has its own independent version.
+
+Earlier date-based releases were renumbered by the scope of each update.
+The first release is 1.0.0. Feature additions increment the minor number, fixes
+increment the patch, and the Workers/D1/R2 architecture migration starts 2.0.0.
+The changelog retains the original release dates and content.
+
+| Original release | Site version | Original release | Site version |
+| --- | --- | --- | --- |
+| 1 | 1.0.0 | 15 | 2.0.0 |
+| 2 | 1.1.0 | 16 | 2.1.0 |
+| 3 | 1.2.0 | 17 | 2.2.0 |
+| 4 | 1.3.0 | 18 | 2.3.0 |
+| 5 | 1.4.0 | 19 | 2.4.0 |
+| 6 | 1.4.1 | 20 | 2.4.1 |
+| 7 | 1.4.2 | 21 | 2.5.0 |
+| 8 | 1.4.3 | 22 | 2.6.0 |
+| 9 | 1.4.4 | 23 | 2.6.1 |
+| 10 | 1.5.0 | 24 | 2.7.0 |
+| 11 | 1.5.1 | 25 | 2.8.0 |
+| 12 | 1.6.0 | 26 | 2.8.1 |
+| 13 | 1.6.1 | 27 | 2.9.0 |
+| 14 | 1.6.2 | 28 | 2.10.0 |
+
+The version-numbering update is 2.10.1. Original release 1 used `20261028`;
+subsequent date-based IDs ended in the original release number.
+
 ## Deploy from GitHub with Workers Builds
 
 Create a **Workers** project from this repository, not a Pages project.
@@ -295,3 +329,13 @@ The original file and original filename/size used for save identity stay intact.
 A corner panel provides progress and cancellation. CARD2, nonstandard media
 units, malformed layouts, and tails containing other bytes are left unchanged.
 This does not guarantee that the remaining ROM fits browser or core memory.
+
+Local 3DS files of at least 256 MiB use a bounded read-only adapter on exactly
+4.3.0-pre / Azahar. It bypasses the frontend ROM arrayBuffer/cache/MEMFS write
+path. Reads use 1 MiB local Blob slices and an 8 MiB LRU cache. A worker-side 256-byte binary
+compatibility probe must pass. Unsupported environments fail without falling
+back to full allocation. This is not WORKERFS: a dedicated worker uses FileReaderSync on slices, sharing
+results through a 1 MiB SharedArrayBuffer. The synchronous core briefly waits
+for each uncached block, with a five-second timeout. The core may still allocate its own
+memory. Safari gameplay and performance are not established by the FS tests.
+Diagnostics record romIO counters; no source ROM is modified or uploaded.

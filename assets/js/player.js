@@ -24,6 +24,7 @@ const CORE_ALIASES = Object.freeze({
 
 const message = document.getElementById("player-message");
 let resourceDiagnostics = null;
+let lazyRom = null;
 let localPreparation = null;
 const localPreparationController = new AbortController();
 let emulatorStarted = false;
@@ -181,9 +182,10 @@ function sampleDiagnostics(phase) {
     diagnostics.input = runtimeSupport.snapshot();
     diagnostics.operationFailures = runtimeSupport.failures;
   }
+  if (lazyRom) diagnostics.romIO = { ...lazyRom.stats };
   if (resourceDiagnostics) {
     diagnostics.requests = resourceDiagnostics.requests;
-    if (resourceDiagnostics.localRom) diagnostics.localRom = resourceDiagnostics.localRom;
+    if (resourceDiagnostics.localRom) diagnostics.localRom = lazyRom ? { ...resourceDiagnostics.localRom, source: 'lazy-file', readState: lazyRom.stats.state, readAttempts: lazyRom.stats.reads } : resourceDiagnostics.localRom;
   }
   const emulator = window.EJS_emulator;
   if (typeof emulator?.ejs_version === "string") diagnostics.runtimeVersion = emulator.ejs_version.slice(0, 80);
@@ -208,7 +210,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261030-27",
+    appVersion: "2.10.1",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -486,6 +488,20 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
+    if (gameUrl instanceof File && game.core === '3ds' && gameUrl.size >= 256 * 1048576) {
+      try {
+        lazyRom = window.RetroLazyRom.install(emulator, gameUrl, stats => { sampleDiagnostics(); if (stats.state === 'failed') reportPlayerError('lazyRomReadError'); });
+        sampleDiagnostics();
+      } catch (error) {
+        // Stop instead of silently retrying a multi-gigabyte allocation.
+        const original = emulator.download;
+        emulator.download = function(url, type) {
+          if (url === gameUrl && type?.name === 'rom') { reportPlayerError('lazyRomUnavailable'); return Promise.reject(new Error('lazyRomUnavailable')); }
+          return Reflect.apply(original, this, arguments);
+        };
+        reportPlayerError('lazyRomUnavailable');
+      }
+    }
     runtimeSupport?.attach(emulator);
     syncEmulatorLanguage();
     // EmulatorJS emits exit for both failures and explicit exits.
@@ -641,6 +657,7 @@ function shutdownPlayer(reason = "close") {
   playerClosing = true;
   localPreparationController.abort();
   runtimeSupport?.stop();
+  lazyRom?.stop();
   restoreConsoleDiagnostics?.();
   restoreAudioContextTracking?.();
   saveManager?.stop();

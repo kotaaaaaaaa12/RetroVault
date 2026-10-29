@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261030-27">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261030-27">
-  <script src="/assets/js/i18n.js?v=20261030-27" defer></script>
-  <script src="/assets/js/changelog.js?v=20261030-27" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.10.1">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.10.1">
+  <script src="/assets/js/i18n.js?v=2.10.1" defer></script>
+  <script src="/assets/js/changelog.js?v=2.10.1" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,13 +34,23 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-versioning">
+      <div class="release-meta"><span>2.10.1</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-versioning" data-i18n="releaseSemverTitle">Readable site version numbers</h2>
+      <ul><li data-i18n="releaseSemverNumbers">Site releases start at 1.0.0. Features increment the minor number and fixes increment the patch; the Workers architecture migration starts 2.0.0. Earlier entries retain their original dates. Diagnostics, package metadata, and asset cache versions use the same site version.</li></ul>
+    </article>
+    <article class="release" aria-labelledby="release-28">
+      <div class="release-meta"><span>2.10.0</span><time datetime="2026-10-30">2026-10-30</time></div>
+      <h2 id="release-28" data-i18n="releaseTwentyEightTitle">Bounded local 3DS reads</h2>
+      <ul><li data-i18n="releaseTwentyEightReads">Large local 3DS files use a read-only file adapter with 1 MiB blocks and an 8 MiB cache on the pinned Azahar runtime. A binary-read compatibility check must pass first; unsupported environments stop instead of retrying a full-file allocation. Game startup on the reporting Safari device remains unverified.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-27">
-      <div class="release-meta"><span>20261030-27</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.9.0</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-27" data-i18n="releaseTwentySevenTitle">Conservative local 3DS padding preparation</h2>
       <ul><li data-i18n="releaseTwentySevenTrim">Retro Vault verifies standard CARD1 partition boundaries and scans trailing padding in small chunks before omitting it for startup. Original files and save identities remain unchanged. CARD2 and unverified layouts are not trimmed. This is a Retro Vault feature, and does not guarantee large-ROM startup.</li></ul>
     </article>
     <article class="release" aria-labelledby="release-26">
-      <div class="release-meta"><span>20261029-26</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <div class="release-meta"><span>2.8.1</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-26" data-i18n="releaseTwentySixTitle">Direct local ROM loading and request diagnostics</h2>
       <ul>
         <li data-i18n="releaseTwentySixLocal">Local ROMs are passed as named File objects, matching the official demo and avoiding a blob URL fetch. Local save identities remain unchanged.</li>
@@ -48,12 +58,12 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-25">
-      <div class="release-meta"><span>20261029-25</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <div class="release-meta"><span>2.8.0</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-25" data-i18n="releaseTwentyFiveTitle">File storage categories</h2>
       <ul><li data-i18n="releaseTwentyFiveFiles">File storage is grouped into expandable ROM, thumbnail, BIOS, and patch categories. Headings show file counts and completed sizes. Open categories stay open after updates and language changes.</li></ul>
     </article>
     <article class="release" aria-labelledby="release-24">
-      <div class="release-meta"><span>20261029-24</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <div class="release-meta"><span>2.7.0</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-24" data-i18n="releaseTwentyFourTitle">Upload progress and corner notifications</h2>
       <ul>
         <li data-i18n="releaseTwentyFourNotices">Errors and completion messages appear as dismissible notifications at the bottom right. Player errors are shown once without adding bars above or below the game.</li>
@@ -61,12 +71,12 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-23">
-      <div class="release-meta"><span>20261029-23</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <div class="release-meta"><span>2.6.1</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-23" data-i18n="releaseTwentyThreeTitle">Consistent save panel typography</h2>
       <ul><li data-i18n="releaseTwentyThreeFonts">The library, management, changelog, and save panel use one shared pixel logo style. Save panel fonts are protected from the emulator's global font reset in both languages.</li></ul>
     </article>
     <article class="release" aria-labelledby="release-22">
-      <div class="release-meta"><span>20261029-22</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <div class="release-meta"><span>2.6.0</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-22" data-i18n="releaseTwentyTwoTitle">Choose the game order</h2>
       <ul>
         <li data-i18n="releaseTwentyTwoOrder">Use Up and Down in management to change the library order. Each change saves immediately and is used by the public library, search results, and system filters. New games append at the end.</li>
@@ -74,7 +84,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-21">
-      <div class="release-meta"><span>20261028-21</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.5.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-21" data-i18n="releaseTwentyOneTitle">Unified Vault design and bilingual game titles</h2>
       <ul>
         <li data-i18n="releaseTwentyOneDesign">Library management and device saves share the Vault colors, pixel logo, and panel styling. Search, language, and local ROM controls sit in the library header.</li>
@@ -83,7 +93,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-20">
-      <div class="release-meta"><span>20261028-20</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.4.1</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-20" data-i18n="releaseTwentyTitle">Mobile startup audio compatibility and input diagnostics</h2>
       <ul>
         <li data-i18n="releaseTwentyAudio">Replaced the prerelease mobile Safari audio check that assumes an OpenAL context exists. Existing suspended audio can resume during a trusted tap without consuming the control input or opening an audio-wait popup.</li>
@@ -91,7 +101,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-19">
-      <div class="release-meta"><span>20261028-19</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.4.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-19" data-i18n="releaseNineteenTitle">Select the system automatically when choosing a ROM</h2>
       <ul>
         <li data-i18n="releaseNineteenSystem">ROM uploads and uploaded-file selections detect the system from known extensions, including when editing an existing game. Switching systems selects the default core; choosing another ROM for the same system preserves a custom core.</li>
@@ -99,7 +109,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-18">
-      <div class="release-meta"><span>20261028-18</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.3.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-18" data-i18n="releaseEighteenTitle">Multiple uploads and readable file sizes</h2>
       <ul>
         <li data-i18n="releaseEighteenUploads">ROM and thumbnail pickers accept multiple files. Uploads run sequentially with per-file results, progress, retries, and cancellation. Completed files remain available if another file fails.</li>
@@ -107,7 +117,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-17">
-      <div class="release-meta"><span>20261028-17</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.2.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-17" data-i18n="releaseSeventeenTitle">Open the library without signing in</h2>
       <ul>
         <li data-i18n="releaseSeventeenAccess">The game library, player, and published game files are available without signing in. Only management and the NES comparison test require the administrator password.</li>
@@ -115,7 +125,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-16">
-      <div class="release-meta"><span>20261028-16</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.1.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-16" data-i18n="releaseSixteenTitle">Choose the login password in Cloudflare</h2>
       <ul>
         <li data-i18n="releaseSixteenPassword">Set ADMIN_PASSWORD as a Worker secret using your chosen password directly. No manual password hashing is required.</li>
@@ -123,7 +133,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-15">
-      <div class="release-meta"><span>20261028-15</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>2.0.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-15" data-i18n="releaseFifteenTitle">Workers deployment and private library management</h2>
       <ul>
         <li data-i18n="releaseFifteenAdmin">Added password-protected game management with ROM and thumbnail uploads, system/core selection, draft publishing, JSON import/export, and trash.</li>
@@ -132,7 +142,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-14">
-      <div class="release-meta"><span>20261028-14</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.6.2</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-14" data-i18n="releaseFourteenTitle">Controller translations and startup layout</h2>
       <ul>
         <li data-i18n="releaseFourteenPort">Translated Controller Port Devices and numbered port labels in the Japanese emulator settings.</li>
@@ -140,14 +150,14 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-13">
-      <div class="release-meta"><span>20261028-13</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.6.1</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-13" data-i18n="releaseThirteenTitle">Prevent automatic phone links</h2>
       <ul>
         <li data-i18n="releaseThirteenNumbers">Disabled automatic phone-number detection in Safari on all site pages so release identifiers remain plain text.</li>
       </ul>
     </article>
     <article class="release" aria-labelledby="release-12">
-      <div class="release-meta"><span>20261028-12</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.6.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-12" data-i18n="releaseTwelveTitle">Main player update to EmulatorJS 4.3.0-pre</h2>
       <ul>
         <li data-i18n="releaseTwelveVersion">Made the same pinned 4.3.0-pre runtime used in the successful NES comparison the default for the main player. Explicit per-game version and data-path settings remain supported.</li>
@@ -156,21 +166,21 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-11">
-      <div class="release-meta"><span>20261028-11</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.5.1</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-11" data-i18n="releaseElevenTitle">EmulatorJS release comparison</h2>
       <ul>
         <li data-i18n="releaseElevenTest">Added 4.3.0-pre to the standalone NES comparison, using its matching loader and cores. Tests default to this prerelease; the normal player still defaults to 4.2.3. Test save names are separated by release, and diagnostics record the selected release and available runtime information.</li>
       </ul>
     </article>
     <article class="release" aria-labelledby="release-10">
-      <div class="release-meta"><span>20261028-10</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.5.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-10" data-i18n="releaseTenTitle">Standalone NES comparison test</h2>
       <ul>
         <li data-i18n="releaseTenTest">Added a same-site NES test without the launcher, player wrapper, or additional save manager. Test logs are separate from normal player logs. This is a diagnostic comparison, not a confirmed crash fix.</li>
       </ul>
     </article>
     <article class="release" aria-labelledby="release-9">
-      <div class="release-meta"><span>20261028-9</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.4.4</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-9" data-i18n="releaseNineTitle">Save write cleanup and reload diagnostics</h2>
       <ul>
         <li data-i18n="releaseNineWrites">Removed extra forced filesystem writes after native automatic saves and stopped rebuilding the hidden save panel during play.</li>
@@ -178,21 +188,21 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-8">
-      <div class="release-meta"><span>20261028-8</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.4.3</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-8" data-i18n="releaseEightTitle">Save controls placement</h2>
       <ul>
         <li data-i18n="releaseEightControls">Removed the persistent save button over the game. Use Saves beside Close, or the EmulatorJS controls menu in fullscreen mode.</li>
       </ul>
     </article>
     <article class="release" aria-labelledby="release-7">
-      <div class="release-meta"><span>20261028-7</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.4.2</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-7" data-i18n="releaseSevenTitle">Changelog fonts</h2>
       <ul>
         <li data-i18n="releaseSevenFonts">Loaded the same logo and interface fonts as the game library on the changelog page.</li>
       </ul>
     </article>
     <article class="release" aria-labelledby="release-6">
-      <div class="release-meta"><span>20261028-6</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.4.1</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-6" data-i18n="releaseSixTitle">Manual start and startup diagnostics</h2>
       <ul>
         <li data-i18n="releaseSixStart">Replaced automatic startup with a Start Game tap inside the player.</li>
@@ -201,7 +211,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-5">
-      <div class="release-meta"><span>20261028-5</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.4.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-5" data-i18n="releaseFiveTitle">Saves on this device</h2>
       <ul>
         <li data-i18n="releaseFiveSlots">Added three persistent state slots with save times, import, export, and overwrite and deletion confirmations.</li>
@@ -210,7 +220,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-4">
-      <div class="release-meta"><span>20261028-4</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.3.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-4" data-i18n="releaseFourTitle">Changelog and game configuration guide</h2>
       <ul>
         <li data-i18n="releaseFourHistory">Added a changelog page linked from the footer, with English and Japanese support.</li>
@@ -219,7 +229,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-3">
-      <div class="release-meta"><span>20261028-3</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.2.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-3" data-i18n="releaseThreeTitle">Player lifecycle and diagnostics</h2>
       <ul>
         <li data-i18n="releaseThreeCleanup">Improved player shutdown, save flushing, and audio cleanup. Hidden games pause automatically.</li>
@@ -229,7 +239,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-2">
-      <div class="release-meta"><span>20261028-2</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.1.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-2" data-i18n="releaseTwoTitle">Japanese localization</h2>
       <ul>
         <li data-i18n="releaseTwoInterface">Added Auto, English, and Japanese language options for the interface, notices, and errors.</li>
@@ -237,7 +247,7 @@
       </ul>
     </article>
     <article class="release" aria-labelledby="release-1">
-      <div class="release-meta"><span>20261028</span><time datetime="2026-10-28">2026-10-28</time></div>
+      <div class="release-meta"><span>1.0.0</span><time datetime="2026-10-28">2026-10-28</time></div>
       <h2 id="release-1" data-i18n="releaseOneTitle">Thread defaults and error visibility</h2>
       <ul>
         <li data-i18n="releaseOneThreads">Removed the threading switch. Ordinary cores default to OFF; cores that require threads enable them when supported.</li>

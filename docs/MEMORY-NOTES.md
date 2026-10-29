@@ -182,3 +182,24 @@ No FPS limit or gameplay-speed adjustment was added. The uploaded test log did
 not record measured frame rate. Original NTSC NES Mario normally runs near 60 fps;
 its TIME counter is not a real-seconds clock. The existing native speed controls
 remain available.
+
+## Bounded local reads (2026-10-30)
+
+The v27 report trimmed 4 GiB to 3,307,900,928 bytes, then ended during
+File.arrayBuffer(). The user confirmed a Safari reload. The log establishes
+the pending whole-file read, not the browser termination reason.
+
+Large plain local 3DS/CCI/CXI/APP/ELF/AXF files now bypass that frontend path on
+the pinned Azahar runtime. A dedicated worker uses FileReaderSync on 1 MiB
+slices, returning bytes through a shared buffer. A read-only FS adapter has an
+8 MiB LRU cache and bounds temporary copies. The synchronous core waits for
+uncached blocks with a five-second limit; this can block the UI during IO.
+This is a custom adapter, not WORKERFS. Worker initialization has a ten-second
+timeout and unsupported environments do not fall back to allocating the ROM.
+
+Validation uses the actual pinned Azahar JS/Wasm distribution and a sparse
+4 GiB synthetic file. FS reads at the start, beyond 2 GiB, and the end match
+expected bytes, with a 512 MiB core heap and cache bounded at 8 MiB. The adapter
+frontend handoff and cleanup are also checked. This is not a commercial-game
+boot test or Safari device test; core-internal allocations and gameplay
+performance remain unverified.
