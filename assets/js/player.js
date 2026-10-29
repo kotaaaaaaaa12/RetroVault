@@ -24,6 +24,8 @@ const CORE_ALIASES = Object.freeze({
 
 const message = document.getElementById("player-message");
 let resourceDiagnostics = null;
+let localPreparation = null;
+const localPreparationController = new AbortController();
 let emulatorStarted = false;
 let playerClosing = false;
 let displayedMessage = null;
@@ -206,7 +208,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261029-26",
+    appVersion: "20261030-27",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -223,6 +225,7 @@ function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJ
     heapGrowthEvents: 0,
     errors: [],
     runtimeLog: [],
+    localPreparation,
     startMode: "tap-in-player",
     memoryScope: "Core WebAssembly linear memory only; excludes browser, JavaScript, audio, and GPU memory."
   };
@@ -560,7 +563,7 @@ async function bootLibraryGame(params, requestedThreads) {
 function bootLocalGame(requestedThreads) {
   showMessage("waitingLocal");
 
-  const onMessage = event => {
+  const onMessage = async event => {
     if (
       event.origin !== window.location.origin ||
       event.source !== window.parent ||
@@ -581,12 +584,30 @@ function bootLocalGame(requestedThreads) {
 
       // The pinned runtime supports File input, as used by the official demo.
       // Keep the original extension and avoid fetching a local blob URL.
-      const rom = file instanceof File ? file : new File([file], game.localFilename || "game.rom", { type: file.type });
+      let rom = file instanceof File ? file : new File([file], game.localFilename || "game.rom", { type: file.type });
+      if (window.RetroLocalRom && game.core === '3ds') {
+        const panel = document.getElementById('local-preparation');
+        const meter = document.getElementById('local-preparation-meter');
+        const label = document.getElementById('local-preparation-label');
+        let last = 0;
+        window.RetroNotices?.mount(panel); panel.hidden = false;
+        try {
+          const prepared = await window.RetroLocalRom.prepare(rom, { signal: localPreparationController.signal, progress(done, total) {
+            meter.value = done / total * 100;
+            if (Date.now() - last > 200 || done === total) { label.textContent = t('localTrimProgress', { percent: Math.floor(done / total * 100) }); last = Date.now(); }
+          } });
+          localPreparation = { originalSize: prepared.originalSize, preparedSize: prepared.preparedSize, reason: prepared.reason };
+          rom = prepared.file;
+        } finally { panel.hidden = true; }
+      }
+      if (playerClosing || localPreparationController.signal.aborted) return;
       hideMessage();
       startEmulator(game, rom, requestedThreads);
+      if (localPreparation) window.RetroNotices?.notify('trim-result', { key: localPreparation.reason === 'trimmed' ? 'localTrimDone' : localPreparation.reason === 'unsupported-media' ? 'localTrimSkippedMedia' : 'localTrimSkipped', values: { before: (localPreparation.originalSize / 1048576).toFixed(1), after: (localPreparation.preparedSize / 1048576).toFixed(1) } });
     } catch (error) {
+      if (playerClosing) return;
+      if (localPreparationController.signal.aborted) { showMessage("localTrimCancelled", true); return; }
       console.error(error);
-
       reportException(error, "localOpenError");
     }
   };
@@ -618,6 +639,7 @@ async function boot() {
 function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
+  localPreparationController.abort();
   runtimeSupport?.stop();
   restoreConsoleDiagnostics?.();
   restoreAudioContextTracking?.();
@@ -793,3 +815,5 @@ window.addEventListener("message", event => {
 
 I18n.apply();
 boot();
+
+document.getElementById("local-preparation-cancel")?.addEventListener("click", () => localPreparationController.abort());

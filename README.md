@@ -287,3 +287,11 @@ ROM, BIOS, root game-data directories, server source, tests, dependency folders,
 and secrets are never copied into the public asset directory. Avoid placing ROMs
 or secrets inside interface asset directories. Use `.gitignore` to keep local
 secrets, generated output, and dependencies out of Git.
+
+Local 3DS padding preparation is a Retro Vault feature, not an EmulatorJS option.
+It inspects standard CARD1 NCSD/NCCH boundaries and verifies every omitted byte
+is 0xFF using at most 4 MiB per read, before creating a sliced File for startup.
+The original file and original filename/size used for save identity stay intact.
+A corner panel provides progress and cancellation. CARD2, nonstandard media
+units, malformed layouts, and tails containing other bytes are left unchanged.
+This does not guarantee that the remaining ROM fits browser or core memory.

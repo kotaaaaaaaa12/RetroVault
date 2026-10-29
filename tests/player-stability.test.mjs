@@ -112,7 +112,7 @@ async function environment(source, options = {}) {
     return id;
   };
   const context = vm.createContext({
-    window, document, URL, URLSearchParams, Blob, File, TextEncoder, TextDecoder, console: options.console || console,
+    window, document, URL, URLSearchParams, Blob, File, AbortController, TextEncoder, TextDecoder, console: options.console || console,
     sessionStorage: window.sessionStorage, location: window.location, navigator: window.navigator,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
