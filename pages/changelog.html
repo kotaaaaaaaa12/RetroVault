@@ -9,9 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261029-22">
-  <script src="/assets/js/i18n.js?v=20261029-22" defer></script>
-  <script src="/assets/js/changelog.js?v=20261029-22" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=20261029-25">
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261029-25">
+  <script src="/assets/js/i18n.js?v=20261029-25" defer></script>
+  <script src="/assets/js/changelog.js?v=20261029-25" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -33,8 +34,26 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-25">
+      <div class="release-meta"><span>20261029-25</span><time datetime="2026-10-29">2026-10-29</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-25" data-i18n="releaseTwentyFiveTitle">File storage categories</h2>
+      <ul><li data-i18n="releaseTwentyFiveFiles">File storage is grouped into expandable ROM, thumbnail, BIOS, and patch categories. Headings show file counts and completed sizes. Open categories stay open after updates and language changes.</li></ul>
+    </article>
+    <article class="release" aria-labelledby="release-24">
+      <div class="release-meta"><span>20261029-24</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <h2 id="release-24" data-i18n="releaseTwentyFourTitle">Upload progress and corner notifications</h2>
+      <ul>
+        <li data-i18n="releaseTwentyFourNotices">Errors and completion messages appear as dismissible notifications at the bottom right. Player errors are shown once without adding bars above or below the game.</li>
+        <li data-i18n="releaseTwentyFourUploads">A fixed upload panel shows the current file, queue position, bytes, and progress while each part is sent. Failed transfers, retries, and cancellation keep their existing behavior.</li>
+      </ul>
+    </article>
+    <article class="release" aria-labelledby="release-23">
+      <div class="release-meta"><span>20261029-23</span><time datetime="2026-10-29">2026-10-29</time></div>
+      <h2 id="release-23" data-i18n="releaseTwentyThreeTitle">Consistent save panel typography</h2>
+      <ul><li data-i18n="releaseTwentyThreeFonts">The library, management, changelog, and save panel use one shared pixel logo style. Save panel fonts are protected from the emulator's global font reset in both languages.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-22">
-      <div class="release-meta"><span>20261029-22</span><time datetime="2026-10-29">2026-10-29</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>20261029-22</span><time datetime="2026-10-29">2026-10-29</time></div>
       <h2 id="release-22" data-i18n="releaseTwentyTwoTitle">Choose the game order</h2>
       <ul>
         <li data-i18n="releaseTwentyTwoOrder">Use Up and Down in management to change the library order. Each change saves immediately and is used by the public library, search results, and system filters. New games append at the end.</li>

@@ -69,14 +69,7 @@ button {
 }
 
 .logo {
-  font-family: "Press Start 2P", ui-monospace, monospace;
   font-size: clamp(1.1rem, 4.2vw, 2.25rem);
-  letter-spacing: 0.08em;
-  background: linear-gradient(135deg, var(--accent-2), var(--accent-3) 52%, var(--accent));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 12px rgba(0, 170, 255, 0.42));
 }
 
 .subtitle {

@@ -435,15 +435,18 @@ function renderNotice() {
 
 function resetPlayerStatus(game) {
   state.playerError = null;
+  window.RetroNotices?.dismiss('player-parent');
   elements.playerStatus.hidden = true;
   elements.playerStatus.textContent = "";
   storageSet(ACTIVE_GAME_KEY, game.title);
 }
 
-function showPlayerError(message, key = "", values = {}) {
-  state.playerError = { message, key, values };
+function showPlayerError(message, key = "", values = {}, toastHandled = false) {
+  state.playerError = { message, key, values, toastHandled };
   elements.playerStatus.textContent = key ? t(key, values) : message ? I18n.errorText(message) : t("emulatorStopped");
-  elements.playerStatus.hidden = false;
+  elements.playerStatus.hidden = toastHandled || !!window.RetroNotices;
+  if (toastHandled) window.RetroNotices?.dismiss('player-parent');
+  else window.RetroNotices?.notify('player-parent', { message: elements.playerStatus.textContent, error: true });
 }
 
 function validateGame(game, index) {
@@ -708,6 +711,7 @@ function closeModal() {
 }
 
 function finishClosingPlayer() {
+  window.RetroNotices?.dismiss('player-parent');
   elements.saves.disabled = true;
   if (state.closeTimer !== null) clearTimeout(state.closeTimer);
   state.closeTimer = null;
@@ -824,7 +828,7 @@ window.addEventListener("message", event => {
   }
 
   if (event.data?.type === "retro-vault-player-error") {
-    showPlayerError(event.data.message, event.data.key || "", event.data.values || {});
+    showPlayerError(event.data.message, event.data.key || "", event.data.values || {}, event.data.toastHandled === true);
   }
 
   if (event.data?.type === "retro-vault-player-exit") {
@@ -864,8 +868,8 @@ I18n.onChange(() => {
     elements.corePickerHelp.textContent = t(extension ? "ambiguousExtension" : "unknownExtension", { extension });
   }
   if (state.playerError) {
-    const { message, key, values } = state.playerError;
-    showPlayerError(message, key, values);
+    const { message, key, values, toastHandled } = state.playerError;
+    showPlayerError(message, key, values, toastHandled);
   }
 });
 

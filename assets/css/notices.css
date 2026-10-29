@@ -1,0 +1,42 @@
+#rv-notices {
+  position: fixed;
+  z-index: 2147483647;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(400px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  pointer-events: none;
+  font: 14px/1.6 var(--vault-font, ui-monospace, monospace);
+  color: var(--text, #e8e8f0);
+  text-align: left;
+}
+html:lang(ja) #rv-notices { font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
+#rv-notices :where(*) { box-sizing: border-box; font-family: inherit; }
+#rv-notices > * { flex: 0 0 auto; pointer-events: auto; }
+#rv-notices .rv-toast, #rv-notices .rv-upload {
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--border, #242438);
+  border-left: 3px solid var(--accent-2, #00aaff);
+  background: var(--surface, #12121a);
+  box-shadow: 0 8px 32px #0008;
+  overflow-wrap: anywhere;
+}
+#rv-notices .rv-toast { padding-right: 56px; }
+#rv-notices .rv-toast.error { border-left-color: var(--danger, #ff5d72); }
+#rv-notices p { margin: 0; line-height: 1.6; white-space: pre-wrap; }
+#rv-notices button { font: inherit; color: inherit; border: 1px solid var(--border, #242438); border-radius: 0; background: var(--surface-2, #171722); cursor: pointer; min-height: 44px; padding: 8px 12px; touch-action: manipulation; }
+#rv-notices .rv-toast-close { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; min-height: 44px; border: 0; background: transparent; padding: 0; font-size: 24px; line-height: 1; }
+#rv-notices button:focus-visible { outline: 2px solid var(--accent-2, #00aaff); outline-offset: -3px; }
+#rv-notices .rv-upload-title { color: var(--accent-2, #00aaff); font-size: .8rem; margin-bottom: 8px; }
+#rv-notices .rv-upload-label { font-size: .85rem; }
+#rv-notices .rv-upload-phase { color: var(--muted, #9a9ab0); font-size: .8rem; margin: 6px 0 10px; }
+#rv-notices progress { display: block; width: 100%; height: 12px; margin: 12px 0; appearance: none; border: 0; background: var(--border, #242438); accent-color: var(--accent-2, #00aaff); }
+#rv-notices progress::-webkit-progress-bar { background: var(--border, #242438); }
+#rv-notices progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent-2, #00aaff), var(--accent-3, #ffe600)); }
+#rv-notices progress::-moz-progress-bar { background: var(--accent-2, #00aaff); }
+#rv-notices [hidden] { display: none !important; }

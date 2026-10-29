@@ -51,10 +51,14 @@ body {
   color: #ffc2cb;
 }
 
-.rv-save-root {
+.rv-save-root,
+.ejs_parent .rv-save-root {
   color: var(--text);
   font: 14px/1.7 var(--vault-font);
 }
+
+/* EmulatorJS resets every descendant's font after loading its stylesheet. */
+#save-root :where(*) { font-family: inherit; }
 
 .rv-save-root [hidden] {
   display: none !important;

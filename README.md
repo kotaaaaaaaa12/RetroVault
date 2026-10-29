@@ -147,7 +147,13 @@ the first successfully uploaded ROM, and later files do not change that choice.
 The first picked ROM previews its detected system immediately; if no ROM upload
 completes, the previous system/core settings are restored.
 
-The queue displays each file's result and the current file number and progress.
+The queue displays each file's result. A fixed panel at the bottom right shows
+the current file number, bytes sent, and progress during each request. It remains
+visible while scrolling and waits for the server commit before reaching 100%.
+Completion and error notifications appear at the bottom right without moving
+the page. Completion notifications expire after eight seconds; errors remain
+until dismissed. Player errors appear once inside the player, including in
+fullscreen, without adding bars above or below the game.
 An individual failure does not discard completed files or stop later files.
 Cancel stops the current upload and remaining queue; completed uploads stay in
 storage. File sizes use B, KiB, MiB, or GiB so small files do not round to zero.
@@ -158,6 +164,10 @@ are available. The default per-file maximum is 8 GiB, configurable with
 `MAX_ROM_BYTES`. Browser memory and emulator compatibility remain separate limits.
 A browser reload does not automatically resume an interrupted upload; staged
 entries can be removed from File storage before retrying.
+File storage groups ROMs, thumbnails, BIOS files, and patches into separate
+expandable categories. Each heading shows its file count and completed size.
+Categories start collapsed and keep their open state during updates and language
+changes on the current page. Empty categories show an empty-state message.
 
 The advanced JSON editor supports the current Retro Vault fields. Apply JSON to
 the form before saving. Unsupported fields are rejected rather than silently

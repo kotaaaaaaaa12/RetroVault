@@ -202,7 +202,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "20261029-22",
+    appVersion: "20261029-25",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -239,7 +239,7 @@ function reportPlayerError(key, values = {}, context = {}) {
     sampleDiagnostics("error");
   }
   showMessage(key, true, values);
-  notifyParent("retro-vault-player-error", { key, values, message: t(key, values) });
+  notifyParent("retro-vault-player-error", { key, values, message: t(key, values), toastHandled: !!window.RetroNotices });
 }
 
 function playerError(key, values = {}) {
@@ -286,6 +286,11 @@ function clearSavedThreadOverride(game) {
 
 function showMessage(key, isError = false, values = {}) {
   displayedMessage = { key, isError, values };
+  if (window.RetroNotices) {
+    window.RetroNotices.notify('player', { key, values, error: isError });
+    message?.classList.add('hidden');
+    return;
+  }
   if (!message) return;
   message.textContent = t(key, values);
   message.classList.toggle("error", isError);
@@ -295,6 +300,7 @@ function showMessage(key, isError = false, values = {}) {
 function hideMessage() {
   if (displayedMessage?.isError) return;
   displayedMessage = null;
+  window.RetroNotices?.dismiss('player');
   if (!message) return;
   message.classList.add("hidden");
   message.classList.remove("error");
@@ -756,8 +762,8 @@ I18n.onChange(() => {
   syncEmulatorLanguage();
   if (displayedMessage) {
     const { key, isError, values } = displayedMessage;
-    showMessage(key, isError, values);
-    if (isError) notifyParent("retro-vault-player-error", { key, values, message: t(key, values) });
+    if (!window.RetroNotices) showMessage(key, isError, values);
+    if (isError) notifyParent("retro-vault-player-error", { key, values, message: t(key, values), toastHandled: !!window.RetroNotices });
   }
 });
 
