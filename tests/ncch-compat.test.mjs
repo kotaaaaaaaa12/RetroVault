@@ -6,8 +6,8 @@ import { webcrypto } from 'node:crypto';
 import { ncchFixture } from './ncch-fixture.mjs';
 const source = await readFile(new URL('../assets/js/lazy-rom.js', import.meta.url), 'utf8');
 function environment(Worker = class {}, crypto = webcrypto) {
-  const window = {};
-  vm.runInNewContext(source, { window, crypto, Worker, SharedArrayBuffer, Atomics, performance, setTimeout, clearTimeout });
+  const window = { location: { href: 'https://retro.example/pages/player.html' } };
+  vm.runInNewContext(source, { window, URL, crypto, Worker, SharedArrayBuffer, Atomics, performance, setTimeout, clearTimeout });
   return window.RetroLazyRom;
 }
 async function verify(fixture, api = environment()) {
@@ -139,4 +139,34 @@ test('a failed check keeps original flags and failed I/O rejects mounting; closi
     assert.equal(reader.virtualFlagsByte, undefined);
     assert.equal(reader.worker.terminated, true); reader.stop();
   }
+});
+
+test('Safari library startup waits for the complete disk copy, preserves virtual flags, and awaits disposal', async () => {
+  const fixture = ncchFixture(); let finishDisk, worker, mounts = 0;
+  const { Worker: Base } = rangeWorker(fixture);
+  class Worker extends Base {
+    constructor() { super(); worker = this; }
+    postMessage(message) {
+      if (message.type === 'prepare-disk') {
+        finishDisk = () => {
+          this.onmessage({ data: { type: 'disk-progress', completed: fixture.size, total: fixture.size } });
+          this.onmessage({ data: { type: 'disk-ready', ok: true } });
+        };
+      } else if (message.type === 'dispose') queueMicrotask(() => this.onmessage({ data: { type: 'disposed', cleanup: 'removed' } }));
+      else super.postMessage(message);
+    }
+  }
+  const api = environment(Worker); const source = 'https://retro.example/data/roms/test.3ds';
+  const node = { node_ops: { getattr: () => ({}) }, stream_ops: {} };
+  const emulator = { ejs_version: '4.3.0-pre', isSafari: true, getCore: () => 'azahar', download() { throw new Error('Native whole-ROM fallback'); }, config: {}, gameManager: { FS: { createDataFile() { mounts++; }, lookupPath: () => ({ node }), ErrnoError: Error } } };
+  const installed = api.install(emulator, source);
+  const downloading = emulator.download(source, { name: 'ROM' });
+  while (!finishDisk) await new Promise(resolve => setTimeout(resolve, 1));
+  assert.equal(mounts, 0); assert.equal(installed.stats.disk.state, 'downloading');
+  finishDisk(); await downloading;
+  assert.equal(mounts, 1); assert.equal(installed.stats.mode, 'lazy-opfs'); assert.equal(installed.stats.cacheBytes, 0);
+  const flag = new Uint8Array(1); node.stream_ops.read({}, flag, 0, 1, fixture.base + 0x18f);
+  assert.equal(flag[0], 4);
+  await installed.stop();
+  assert.equal(installed.stats.disk.cleanup, 'removed'); assert.equal(worker.terminated, true);
 });

@@ -487,6 +487,19 @@ test('optional screen wake-lock denial is handled and named without a fatal play
   assert.equal(wakeLock.request, request);
 });
 
+test('device preparation progress shows byte counts without focus changes and hides outside preparation', async () => {
+  const env = await environment(playerSource);
+  const before = env.document.activeElement;
+  vm.runInContext('renderRomPreparation({ disk: { state: "downloading", completed: 67108864, total: 134217728 } })', env.context);
+  assert.equal(env.elements.get('rom-disk-preparation').hidden, false);
+  assert.equal(env.elements.get('rom-disk-meter').value, 50);
+  assert.equal(env.elements.get('rom-disk-count').textContent, `${env.window.RetroI18n.formatBytes(67108864)} / ${env.window.RetroI18n.formatBytes(134217728)}`);
+  assert.equal(env.document.activeElement, before);
+  vm.runInContext('renderRomPreparation({ disk: { state: "ready", completed: 134217728, total: 134217728 } })', env.context);
+  assert.equal(env.elements.get('rom-disk-preparation').hidden, true);
+  assert.ok(env.window.RetroI18n.t('romDiskSpace').length > 20);
+});
+
 test('errors, exit messages, backdrop taps, and Escape keep the game view open; CLOSE dismisses it', async () => {
   const env = await environment(appSource);
   vm.runInContext('openGame(state.games[0])', env.context);

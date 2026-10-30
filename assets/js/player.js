@@ -43,6 +43,17 @@ let legacyLanguageLoader = false;
 let runtimeSupport = null;
 const ownedAudioContexts = new Set();
 
+function renderRomPreparation(stats) {
+  const panel = document.getElementById('rom-disk-preparation');
+  if (!panel) return;
+  const preparing = !playerClosing && stats?.disk?.state === 'downloading';
+  panel.hidden = !preparing;
+  if (!preparing) return;
+  const { completed, total } = stats.disk;
+  document.getElementById('rom-disk-meter').value = total ? completed / total * 100 : 0;
+  document.getElementById('rom-disk-count').textContent = `${I18n.formatBytes(completed)} / ${I18n.formatBytes(total)}`;
+}
+
 function installAudioContextTracking() {
   // RWebAudio keeps its context private. Track contexts created in this iframe.
   const hooks = [];
@@ -216,7 +227,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.14.1",
+    appVersion: "2.15.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -531,7 +542,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     const emulator = window.EJS_emulator;
     if (game.core === '3ds' && ((gameUrl instanceof File && gameUrl.size >= 256 * 1048576) || typeof gameUrl === 'string')) {
       try {
-        lazyRom = window.RetroLazyRom.install(emulator, gameUrl, stats => { sampleDiagnostics(); if (stats.state === 'failed') reportPlayerError('lazyRomReadError'); });
+        lazyRom = window.RetroLazyRom.install(emulator, gameUrl, stats => { sampleDiagnostics(); renderRomPreparation(stats); if (stats.state === 'failed') reportPlayerError(stats.errorKey || 'lazyRomReadError'); });
         sampleDiagnostics();
       } catch (error) {
         // Stop instead of silently retrying a multi-gigabyte allocation.
@@ -708,7 +719,8 @@ function shutdownPlayer(reason = "close") {
   playerClosing = true;
   localPreparationController.abort();
   runtimeSupport?.stop();
-  lazyRom?.stop();
+  const romCleanup = lazyRom?.stop();
+  renderRomPreparation(null);
   restoreConsoleDiagnostics?.();
   restoreAudioContextTracking?.();
   saveManager?.stop();
@@ -751,7 +763,7 @@ function shutdownPlayer(reason = "close") {
     try { fs.syncfs(false, error => done(error ? "failed" : "saved")); }
     catch { done("failed"); }
   });
-  cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation, saveManager?.nativePending]).then(([flushResult]) => {
+  cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation, saveManager?.nativePending, romCleanup]).then(([flushResult]) => {
     const saveFlush = flushResult.status === "fulfilled" ? flushResult.value : "failed";
     const contexts = existingAudioContexts(module);
     for (const context of contexts) {
@@ -777,6 +789,9 @@ function shutdownPlayer(reason = "close") {
 }
 
 window.addEventListener("pagehide", () => { shutdownPlayer("pagehide"); });
+document.getElementById('rom-disk-cancel')?.addEventListener('click', () => {
+  shutdownPlayer('preparation-cancelled').then(() => showMessage('romDiskCancelled'));
+});
 
 function updateVisibility() {
   if (playerClosing) return;
@@ -800,6 +815,7 @@ function updateVisibility() {
 document.addEventListener("visibilitychange", updateVisibility);
 
 window.addEventListener("error", event => {
+  if (playerClosing) return;
   if (event.message) {
     console.error("Emulator runtime error:", event.message);
     reportPlayerError("runtimeError", { message: event.message }, errorContext(event.error, event.filename || "window-error", event));
@@ -807,6 +823,7 @@ window.addEventListener("error", event => {
 });
 
 window.addEventListener("unhandledrejection", event => {
+  if (playerClosing) return;
   const reason = event.reason;
   console.error("Emulator promise rejection:", reason);
   if (reason) reportPlayerError("runtimeError", { message: reason?.message || String(reason) }, errorContext(reason, "unhandledrejection"));

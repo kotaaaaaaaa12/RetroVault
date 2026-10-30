@@ -27,6 +27,40 @@ body {
   background: #000;
 }
 
+.rv-rom-preparation {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow: auto;
+  background: rgba(5, 6, 11, .96);
+  color: var(--text, #e5e7f2);
+  font: 14px/1.6 var(--vault-font, monospace);
+}
+.rv-rom-preparation[hidden] { display: none; }
+.rv-rom-preparation-panel {
+  width: min(100%, 460px);
+  padding: 24px;
+  border: 1px solid var(--border, #34394b);
+  border-radius: 12px;
+  background: var(--surface, #12121a);
+}
+.rv-rom-preparation h2 { margin: 24px 0 12px; font-size: 20px; }
+.rv-rom-preparation .vault-brand { font-size: 16px; }
+.rv-rom-preparation progress { width: 100%; height: 12px; accent-color: var(--accent, #8a72ff); }
+.rv-rom-preparation button {
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid var(--border, #34394b);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 #player-message {
   position: fixed;
   left: 12px;

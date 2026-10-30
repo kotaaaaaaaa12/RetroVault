@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.14.1**. Site releases use
+The current Retro Vault release is **2.15.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -645,3 +645,61 @@ Prefetch and probe failures also retain their reason. No response body,
 request credential, URL query, or raw exception text is added to these logs.
 The transport, deadlines and fail-closed validation rules are unchanged;
 the underlying playback range failure still requires a reporting-device log.
+
+## Prepare Safari library ROMs on disk before playback (2.15.0)
+
+The 2.14.1 reporting-device log identifies a playback `response-timeout` after
+4505 ms at offset 3670016. The wake-lock denial is separately named and handled
+as optional. This establishes where reading fails, but does not establish why
+the network response was delayed.
+
+For remote library 3DS ROMs on the pinned frontend's Safari path, the adapter
+now prepares an OPFS temporary copy after existing header/content verification
+and before mounting the ROM. The native Start Game interaction is preserved.
+The core may already be initialized while the copy is prepared. The entire ROM
+must finish downloading before playback starts; this requires browser quota
+and device space for the ROM. No file picker or persistent-storage permission
+request is added. Local ROMs, other systems, and non-Safari range loading keep
+their existing behavior.
+
+The reader worker creates a uniquely named temporary file under its dedicated
+`retrovault-rom-temp-v1` OPFS directory and holds a SyncAccessHandle. It reuses
+the verified first probe, then requests at most 4 MiB per range. Every response
+must have the exact 206/Content-Range/size/ETag and no Content-Encoding. Response
+streams are written in at most 64 KiB write calls, handling partial writes.
+No whole-ROM ArrayBuffer, Blob, or MEMFS file is created. The 8 MiB read cache
+and per-file Web Crypto limits remain; network request buffers are bounded by
+the 4 MiB range size. Preparation uses a 20-second response/body idle timeout,
+with a 60-second parent-side progress watchdog, rather than a fixed timeout for
+the complete large download.
+
+After checking the stored file size and flushing, the adapter clears its read
+cache and exposes `romIO.mode: "lazy-opfs"`. Worker playback reads use only the
+synchronous disk handle. No ROM fetch occurs on a cache miss, and disk failure
+does not fall back to network or a whole-ROM memory allocation. The existing
+verified virtual no-crypto correction still applies only to returned buffers.
+`romIO.disk` records progress, preparation state, and cleanup state; OPFS read
+failures are marked with transport `OPFS`.
+
+The progress overlay shows downloaded/total bytes and Cancel without moving
+focus. Missing OPFS/SyncAccessHandle support, quota failure, or an incomplete
+or changed download stops startup with an English/Japanese explanation. Cancel
+and Close abort active requests, close the access handle, and remove the owned
+temporary file. Player shutdown waits for cleanup alongside save flushing,
+with a bounded 1800 ms worker-disposal deadline. Abrupt tab/process termination
+can leave a partial copy; when Web Locks is available, the next preparation
+serializes cleanup and creation, removing only matching files in the dedicated
+temporary directory. Locked files belonging to active sessions are skipped.
+Without Web Locks, stale automatic cleanup is skipped to avoid a creation race;
+normal per-session cleanup still runs. Pending cleanup is recorded, not claimed
+as a successful deletion. Saves, IndexedDB databases and unrelated OPFS entries
+are never removed by this path.
+
+Validation includes worker tests for bounded/partial writes, quota, unavailable
+storage, changed objects, short bodies, cancellation and disk read failure;
+adapter checks for deferred mounting and unchanged virtual flags; and real
+Chromium OPFS checks with two concurrent 20 MiB copies, offline cache misses,
+stale-file cleanup, and normal deletion. The actual pinned frontend/core FS was
+also exercised with a synthetic container through the OPFS path, preserving
+the correction and making no ROM network requests after preparation. This is
+not a successful commercial-game boot or a Safari-device verification.

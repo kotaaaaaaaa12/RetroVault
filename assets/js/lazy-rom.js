@@ -115,8 +115,8 @@
     recordIoFailure(value, phase, offset, length, waitMs) {
       const encoded = Number.isInteger(value) && value < 0 ? -value : 0;
       const code = Math.floor(encoded / 1000), httpStatus = encoded % 1000;
-      const reasons = { 1: 'unsupported-url', 2: 'http-status', 3: 'content-range', 4: 'missing-etag', 5: 'changed-etag', 6: 'changed-size', 7: 'content-encoding', 8: 'range-size', 9: 'oversized-body', 10: 'short-body', 11: 'response-timeout', 12: 'network-error', 13: 'invalid-read', 14: 'local-file-read', 16: 'body-timeout' };
-      this.stats.ioFailure = { phase, transport: this.remote ? 'fetch' : 'FileReaderSync', reason: typeof value === 'string' ? value : reasons[code] || 'worker-read-failed' };
+      const reasons = { 1: 'unsupported-url', 2: 'http-status', 3: 'content-range', 4: 'missing-etag', 5: 'changed-etag', 6: 'changed-size', 7: 'content-encoding', 8: 'range-size', 9: 'oversized-body', 10: 'short-body', 11: 'response-timeout', 12: 'network-error', 13: 'invalid-read', 14: 'local-file-read', 16: 'body-timeout', 17: 'opfs-unavailable', 18: 'opfs-quota', 19: 'opfs-write', 20: 'opfs-read', 21: 'preparation-cancelled' };
+      this.stats.ioFailure = { phase, transport: this.stats.mode === 'lazy-opfs' ? 'OPFS' : this.remote ? 'fetch' : 'FileReaderSync', reason: typeof value === 'string' ? value : reasons[code] || 'worker-read-failed' };
       if (httpStatus) this.stats.ioFailure.httpStatus = httpStatus;
       if (Number.isSafeInteger(offset)) this.stats.ioFailure.offset = offset;
       if (Number.isSafeInteger(length)) this.stats.ioFailure.length = length;
@@ -130,11 +130,40 @@
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.14.1');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.15.0');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
         this.initTimeout = setTimeout(() => { this.recordIoFailure('worker-init-timeout', 'probe'); this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
         this.worker.onmessage = async event => {
+          if (event.data.type === 'disposed') {
+            if (this.stats.disk) this.stats.disk.cleanup = event.data.cleanup === 'removed' ? 'removed' : 'pending';
+            this.finishDispose?.(); return;
+          }
+          if (this.stopped) return;
+          if (event.data.type === 'disk-progress') {
+            if (this.pendingDisk && event.data.total === this.file.size && Number.isSafeInteger(event.data.completed) && event.data.completed >= 0 && event.data.completed <= this.file.size) {
+              this.stats.disk.completed = Math.max(this.stats.disk.completed, event.data.completed);
+              this.resetDiskTimeout(); this.changed(this.stats);
+            }
+            return;
+          }
+          if (event.data.type === 'disk-ready') {
+            const pending = this.pendingDisk;
+            if (!pending) return;
+            this.pendingDisk = null; clearTimeout(this.diskTimeout);
+            if (!event.data.ok) {
+              this.recordIoFailure(event.data.failure, 'disk-preparation');
+              const code = Math.floor(-event.data.failure / 1000);
+              this.stats.errorKey = code === 17 ? 'romDiskUnavailable' : code === 18 ? 'romDiskSpace' : 'romDiskFailed';
+              this.stats.disk.state = 'failed';
+              pending.reject(new Error('The temporary ROM file could not be prepared.'));
+            } else {
+              this.stats.mode = 'lazy-opfs'; this.stats.disk.state = 'ready'; this.stats.disk.completed = this.file.size;
+              this.cache.clear(); this.stats.cacheBytes = 0;
+              this.changed(this.stats); pending.resolve();
+            }
+            return;
+          }
           if (event.data.type === 'prefetch') {
             const pending = this.pendingPrefetch;
             if (!pending || event.data.requestId !== pending.id) return;
@@ -172,10 +201,38 @@
           }
           this.stats.state = 'ready'; this.changed(this.stats); resolve();
         };
-        this.worker.onerror = () => { this.recordIoFailure('worker-error', this.pendingPrefetch ? 'verification' : 'probe'); clearTimeout(this.initTimeout); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } reject(new Error('lazyRomUnavailable')); };
+        this.worker.onerror = () => {
+          this.recordIoFailure('worker-error', this.pendingDisk ? 'disk-preparation' : this.pendingPrefetch ? 'verification' : 'probe');
+          clearTimeout(this.initTimeout);
+          if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; }
+          if (this.pendingDisk) { clearTimeout(this.diskTimeout); this.stats.errorKey = 'romDiskFailed'; this.stats.disk.state = 'failed'; this.pendingDisk.reject(new Error('The ROM reader stopped during preparation.')); this.pendingDisk = null; }
+          reject(new Error('lazyRomUnavailable'));
+        };
       });
       this.ready.catch(() => { if (!this.stopped) { this.worker.terminate(); this.stats.state = 'failed'; this.changed(this.stats); } });
       try { this.worker.postMessage({ type: 'init', ...(this.remote ? { url: file.url } : { file }), shared: this.shared }); } catch (error) { clearTimeout(this.initTimeout); this.worker.terminate(); this.rejectReady(error); }
+    }
+    resetDiskTimeout() {
+      clearTimeout(this.diskTimeout);
+      this.diskTimeout = setTimeout(() => {
+        if (!this.pendingDisk) return;
+        this.recordIoFailure('disk-preparation-timeout', 'disk-preparation');
+        this.stats.errorKey = 'romDiskFailed'; this.stats.disk.state = 'failed';
+        this.pendingDisk.reject(new Error('The temporary ROM file preparation timed out.')); this.pendingDisk = null;
+      }, 60000);
+    }
+    prepareDisk() {
+      if (this.diskPromise) return this.diskPromise;
+      if (this.stopped || !this.remote) return Promise.reject(new Error('lazyRomUnavailable'));
+      this.diskRequested = true;
+      this.stats.state = 'preparing-disk'; this.stats.disk = { state: 'downloading', completed: 0, total: this.file.size, cleanup: 'not-started' };
+      this.changed(this.stats);
+      this.diskPromise = new Promise((resolve, reject) => {
+        this.pendingDisk = { resolve, reject }; this.resetDiskTimeout();
+        try { this.worker.postMessage({ type: 'prepare-disk' }); }
+        catch (error) { clearTimeout(this.diskTimeout); this.pendingDisk = null; reject(error); }
+      });
+      return this.diskPromise;
     }
     async readAsync(position, length) {
       if (!Number.isSafeInteger(position) || position < 0 || !Number.isSafeInteger(length) || length < 1 || length > 32 * BLOCK || position + length > this.file.size) throw new Error('lazyRomReadError');
@@ -288,7 +345,22 @@
       };
       this.stats.state = 'mounted'; this.changed(this.stats); return path;
     }
-    stop() { this.stopped = true; clearTimeout(this.initTimeout); this.rejectReady(new Error('lazyRomReadError')); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } this.worker.terminate(); this.cache.clear(); this.stats.cacheBytes = 0; }
+    stop() {
+      if (this.disposePromise) return this.disposePromise;
+      this.stopped = true; clearTimeout(this.initTimeout); clearTimeout(this.diskTimeout);
+      this.rejectReady(new Error('lazyRomReadError'));
+      if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; }
+      if (this.pendingDisk) { this.pendingDisk.reject(new Error('ROM preparation was cancelled.')); this.pendingDisk = null; }
+      this.cache.clear(); this.stats.cacheBytes = 0;
+      if (!this.diskRequested) { this.worker.terminate(); return this.disposePromise = Promise.resolve(); }
+      this.stats.disk.cleanup = 'removing';
+      this.disposePromise = new Promise(resolve => {
+        const timer = setTimeout(() => { this.stats.disk.cleanup = 'pending'; this.finishDispose(); }, 1800);
+        this.finishDispose = () => { clearTimeout(timer); this.worker.terminate(); resolve(); };
+        try { this.worker.postMessage({ type: 'dispose' }); } catch { this.stats.disk.cleanup = 'pending'; this.finishDispose(); }
+      });
+      return this.disposePromise;
+    }
   }
   function install(emulator, source, changed) {
     const file = typeof source === 'string' ? { url: source, name: decodeURIComponent(new URL(source, window.location.href).pathname.split('/').pop()), size: 0 } : source;
@@ -301,13 +373,14 @@
       try {
         reader.stats.state = 'mounting'; reader.changed(reader.stats);
         await reader.ready;
+        if (reader.remote && emulator.isSafari === true) await reader.prepareDisk();
         const path = reader.mount(this.gameManager.FS);
         this.config.gameUrl = path;
         return Promise.resolve({ files: [{ filename: path.slice(1) }] });
-      } catch (error) { reader.stats.state = 'failed'; reader.changed(reader.stats); return Promise.reject(error); }
+      } catch (error) { if (!reader.stopped) { reader.stats.state = 'failed'; reader.changed(reader.stats); } return Promise.reject(error); }
     };
     emulator.download = wrapped;
-    return { stats: reader.stats, stop() { reader.stop(); if (emulator.download === wrapped) emulator.download = original; } };
+    return { stats: reader.stats, stop() { const result = reader.stop(); if (emulator.download === wrapped) emulator.download = original; return result; } };
   }
   window.RetroLazyRom = { LazyRom, install, inspectHeader, inspectExheaderHash, verifyPlaintextRegions };
 })();
