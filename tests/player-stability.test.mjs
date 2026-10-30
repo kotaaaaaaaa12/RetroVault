@@ -468,6 +468,25 @@ test('permission failures name the rejected operation, retain native failure beh
   assert.equal(env.window.navigator.getGamepads, getGamepads);
 });
 
+test('optional screen wake-lock denial is handled and named without a fatal player notification', async () => {
+  const denied = Object.assign(new Error('Permission was denied'), { name: 'NotAllowedError', stack: '' });
+  let last;
+  const request = function(type) { assert.equal(this, wakeLock); assert.equal(type, 'screen'); last = Promise.reject(denied); return last; };
+  const wakeLock = { request };
+  const env = await environment(playerSource, { navigator: { wakeLock } });
+  // Mirror the native core: retain the rejected promise without awaiting it.
+  const retained = env.window.navigator.wakeLock.request('screen');
+  assert.equal(retained, last);
+  await new Promise(resolve => setImmediate(resolve));
+  const log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.operationFailures.at(-1).operation, 'navigator.wakeLock.request');
+  assert.equal(log.operationFailures.at(-1).optional, true);
+  assert.equal(log.operationFailures.at(-1).name, 'NotAllowedError');
+  assert.equal(log.errors.length, 0);
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(wakeLock.request, request);
+});
+
 test('errors, exit messages, backdrop taps, and Escape keep the game view open; CLOSE dismisses it', async () => {
   const env = await environment(appSource);
   vm.runInContext('openGame(state.games[0])', env.context);

@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.14.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.14.0">
-  <script src="/assets/js/i18n.js?v=2.14.0" defer></script>
-  <script src="/assets/js/changelog.js?v=2.14.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.14.1">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.14.1">
+  <script src="/assets/js/i18n.js?v=2.14.1" defer></script>
+  <script src="/assets/js/changelog.js?v=2.14.1" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-io-failure">
+      <div class="release-meta"><span>2.14.1</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-io-failure" data-i18n="releaseIoFailureTitle">Handle optional wake-lock denial and identify ROM read failures</h2>
+      <ul><li data-i18n="releaseIoFailureDetails">Rejected screen-awake requests are now recorded by operation without producing an unhandled player error. Other permission failures remain visible. ROM diagnostics distinguish HTTP failures, changed objects, invalid responses, network errors, and response, body, or main-thread wait timeouts, including the failing byte range. These records do not establish the cause of earlier stackless permission errors.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-ncch-compat">
-      <div class="release-meta"><span>2.14.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.14.0</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-ncch-compat" data-i18n="releaseNcchCompatTitle">Load verified plaintext 3DS content with stale encryption flags</h2>
       <ul><li data-i18n="releaseNcchCompatDetails">The library range loader now checks the extended header, ExeFS superblock and files, and the RomFS superblock before correcting a stale no-crypto flag in bytes passed to the core. Stored ROMs remain unchanged. Failed or unsupported checks leave the flag untouched, and diagnostics record each check and any correction. This is not a full RomFS integrity check.</li></ul>
     </article>

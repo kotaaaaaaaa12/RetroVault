@@ -1,7 +1,7 @@
 import { SYSTEMS, detectSystem, systemFor } from './systems.js';
 import { formatFileSize as bytes } from './file-size.js';
 import { uploadPart } from './upload-part.js';
-import { summarizeStorage } from './storage-usage.js?v=2.14.0';
+import { summarizeStorage } from './storage-usage.js?v=2.14.1';
 
 const i18n = window.RetroI18n;
 const t = (key, values) => i18n.t(key, values);

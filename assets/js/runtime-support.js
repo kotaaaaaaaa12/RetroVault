@@ -17,6 +17,10 @@
       this.coreIssues = [];
       for (const name of ["getGamepads", "webkitGetGamepads"]) this.trace(window.navigator, name, "navigator." + name);
       this.trace(window.navigator?.mediaDevices, "getUserMedia", "mediaDevices.getUserMedia");
+      // The pinned core retains the wake-lock promise without a rejection
+      // handler. Screen-awake support is optional; observe denial without
+      // converting it into an unhandled player failure.
+      this.trace(window.navigator?.wakeLock, 'request', 'navigator.wakeLock.request', true);
       const input = event => {
         if (!this.emulator?.started || this.stopped) return;
         const key = event.type === "keydown" ? "keyEvents" : event.type === "touchstart" ? "touchEvents" : "pointerEvents";
@@ -60,26 +64,27 @@
         });
       } catch {}
     }
-    failed(error, operation) {
+    failed(error, operation, optional = false) {
       if (this.stopped) return;
       const name = String(error?.name || "Error").slice(0, 80);
       const detail = String(error?.message || error).slice(0, 500);
       const previous = this.failures.find(item => item.operation === operation && item.name === name && item.detail === detail);
       if (previous) { previous.count = Math.min(1000000, previous.count + 1); return; }
-      this.failures.push({ at: new Date().toISOString(), operation, name, detail, count: 1 });
+      this.failures.push({ at: new Date().toISOString(), operation, name, detail, count: 1, ...(optional ? { optional: true } : {}) });
       this.failures = this.failures.slice(-4);
-      this.onFailure?.(error, operation);
+      if (optional) this.onChange?.();
+      else this.onFailure?.(error, operation);
     }
-    trace(target, name, operation) {
+    trace(target, name, operation, optional = false) {
       this.replace(target, name, original => {
         const support = this;
         return function(...args) {
           let result;
           try { result = Reflect.apply(original, this, args); }
-          catch (error) { support.failed(error, operation); throw error; }
+          catch (error) { support.failed(error, operation, optional); throw error; }
           if (result && typeof result.then === "function") {
             // Record a named failure even when Safari provides no stack.
-            Promise.resolve(result).catch(error => support.failed(error, operation));
+            Promise.resolve(result).catch(error => support.failed(error, operation, optional));
           }
           return result;
         };

@@ -175,6 +175,7 @@ test('range worker reads 4 GiB offsets using bounded requests and rejects change
   assert.deepEqual(calls,['bytes=0-262143','bytes=4294705152-4294967295']);
   tag='"changed"'; await env.read(262144,524288);
   assert.equal(Atomics.load(new Int32Array(env.shared,0,2),0),-1);
+  assert.equal(Atomics.load(new Int32Array(env.shared,0,2),1),-5206);
 });
 test('range worker rejects full HTTP 200 bodies without consuming them and rejects external URLs',async()=>{
   let cancelled=0, consumed=0, requests=0;
@@ -204,6 +205,30 @@ test('verification prefetch uses the same range validation and never consumes a 
     assert.equal(env.messages.at(-1).type, 'prefetch');
     assert.equal(env.messages.at(-1).requestId, index + 1);
     assert.equal(env.messages.at(-1).ok, value === 'valid');
+    if (value === 'changed') assert.equal(env.messages.at(-1).failure, -5206);
+    if (value === 'full') assert.equal(env.messages.at(-1).failure, -2200);
   }
   assert.equal(consumed, 0);
+});
+test('playback failures retain the worker reason, status and failing byte range after close', async () => {
+  for (const [encoded, reason, status] of [[-2403, 'http-status', 403], [-5206, 'changed-etag', 206], [-11000, 'response-timeout', null], [-16000, 'body-timeout', null], [-12000, 'network-error', null]]) {
+    class FailedWorker {
+      postMessage(message) {
+        if (message.type === 'init') {
+          this.state = new Int32Array(message.shared, 0, 2);
+          queueMicrotask(() => this.onmessage({ data: { ready: true, size: 1048576, firstLength: 262144 } }));
+        } else { Atomics.store(this.state, 1, encoded); Atomics.store(this.state, 0, -1); }
+      }
+      terminate() {}
+    }
+    const reader = new (hashEnvironment(webcrypto, FailedWorker).LazyRom)({ url: '/data/roms/test.3ds', name: 'test.3ds' });
+    await reader.ready;
+    assert.throws(() => reader.read(262144, 512), /lazyRomReadError/);
+    assert.equal(reader.stats.ioFailure.reason, reason);
+    assert.equal(reader.stats.ioFailure.httpStatus ?? null, status);
+    assert.equal(reader.stats.ioFailure.phase, 'playback');
+    assert.equal(reader.stats.ioFailure.offset, 262144); assert.equal(reader.stats.ioFailure.length, 262144);
+    assert.equal(reader.stats.ioFailure.transport, 'fetch');
+    reader.stop(); assert.equal(reader.stats.ioFailure.reason, reason);
+  }
 });

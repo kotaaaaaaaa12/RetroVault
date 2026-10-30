@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.14.0**. Site releases use
+The current Retro Vault release is **2.14.1**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -613,3 +613,35 @@ of RomFS, the authenticity of its unsigned hashes, or all NCSD partitions.
 It does not prove overall ROM integrity or guarantee game compatibility.
 Local-only lazy-file loading and other systems are unchanged. No save data
 is cleared or migrated by this feature.
+
+## Separate optional permission denial from ROM I/O failure (2.14.1)
+
+The reporting 2.14.0 library log confirms matching exheader, ExeFS file and
+RomFS superblock checks and delivery of the corrected flag. The core progresses
+into game service calls. A stackless NotAllowedError then appears, followed
+separately by a failed playback range at offset 3670016 and a native assertion.
+The log does not identify which API rejected the permission request, whether
+the failures are related, or why that range failed. Suspended audio and the
+approximately 1.69 GiB WASM heap are observations, not independent proof of
+autoplay denial or memory exhaustion.
+
+The pinned core's wake-lock helper retains `navigator.wakeLock.request()`
+without handling asynchronous rejection. Runtime support now attaches a
+rejection observer while returning the original promise, preserving native
+success/release behavior and synchronous exceptions. A denial is retained
+under `operationFailures` as `navigator.wakeLock.request` with `optional: true`;
+it does not produce a fatal notification. Other permission operations and
+unidentified rejections retain their existing error behavior. This fixes a
+known rejection-handling defect but does not retroactively identify the
+stackless error in the uploaded log.
+
+The reader worker now passes a bounded numeric failure code through shared
+memory before signaling a failed synchronous read. `romIO.ioFailure` retains
+the phase, transport, reason, failing offset/length and, where available, HTTP
+status and wait duration after Close. Reasons distinguish HTTP status,
+Content-Range/ETag/size/encoding validation, truncated or oversized bodies,
+network errors, response/body timeouts and the main-side wait deadline.
+Prefetch and probe failures also retain their reason. No response body,
+request credential, URL query, or raw exception text is added to these logs.
+The transport, deadlines and fail-closed validation rules are unchanged;
+the underlying playback range failure still requires a reporting-device log.

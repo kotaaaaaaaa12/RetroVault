@@ -112,6 +112,16 @@
     return { ...result, state: 'verified', bytesHashed };
   }
   class LazyRom {
+    recordIoFailure(value, phase, offset, length, waitMs) {
+      const encoded = Number.isInteger(value) && value < 0 ? -value : 0;
+      const code = Math.floor(encoded / 1000), httpStatus = encoded % 1000;
+      const reasons = { 1: 'unsupported-url', 2: 'http-status', 3: 'content-range', 4: 'missing-etag', 5: 'changed-etag', 6: 'changed-size', 7: 'content-encoding', 8: 'range-size', 9: 'oversized-body', 10: 'short-body', 11: 'response-timeout', 12: 'network-error', 13: 'invalid-read', 14: 'local-file-read', 16: 'body-timeout' };
+      this.stats.ioFailure = { phase, transport: this.remote ? 'fetch' : 'FileReaderSync', reason: typeof value === 'string' ? value : reasons[code] || 'worker-read-failed' };
+      if (httpStatus) this.stats.ioFailure.httpStatus = httpStatus;
+      if (Number.isSafeInteger(offset)) this.stats.ioFailure.offset = offset;
+      if (Number.isSafeInteger(length)) this.stats.ioFailure.length = length;
+      if (Number.isFinite(waitMs)) this.stats.ioFailure.waitMs = Math.round(waitMs);
+    }
     constructor(file, changed = () => {}) {
       this.remote = typeof file.url === 'string';
       this.block = this.remote ? 256 * 1024 : BLOCK;
@@ -120,22 +130,22 @@
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.14.0');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.14.1');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
-        this.initTimeout = setTimeout(() => { this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
+        this.initTimeout = setTimeout(() => { this.recordIoFailure('worker-init-timeout', 'probe'); this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
         this.worker.onmessage = async event => {
           if (event.data.type === 'prefetch') {
             const pending = this.pendingPrefetch;
             if (!pending || event.data.requestId !== pending.id) return;
             this.pendingPrefetch = null; clearTimeout(pending.timer);
-            if (!event.data.ok || event.data.length !== pending.length) pending.reject(new Error('lazyRomReadError'));
+            if (!event.data.ok || event.data.length !== pending.length) { this.recordIoFailure(event.data.failure, 'verification', pending.start, pending.length); pending.reject(new Error('lazyRomReadError')); }
             else pending.resolve(this.bytes.slice(0, event.data.length));
             return;
           }
           clearTimeout(this.initTimeout);
           if (this.stopped) return;
-          if (!event.data.ready) return reject(new Error('lazyRomUnavailable'));
+          if (!event.data.ready) { this.recordIoFailure(event.data.failure, 'probe'); return reject(new Error('lazyRomUnavailable')); }
           if (this.remote) {
             const { size, firstLength } = event.data;
             if (!Number.isSafeInteger(size) || size <= 0 || firstLength !== Math.min(size, this.block)) return reject(new Error('lazyRomUnavailable'));
@@ -162,7 +172,7 @@
           }
           this.stats.state = 'ready'; this.changed(this.stats); resolve();
         };
-        this.worker.onerror = () => { clearTimeout(this.initTimeout); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } reject(new Error('lazyRomUnavailable')); };
+        this.worker.onerror = () => { this.recordIoFailure('worker-error', this.pendingPrefetch ? 'verification' : 'probe'); clearTimeout(this.initTimeout); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } reject(new Error('lazyRomUnavailable')); };
       });
       this.ready.catch(() => { if (!this.stopped) { this.worker.terminate(); this.stats.state = 'failed'; this.changed(this.stats); } });
       try { this.worker.postMessage({ type: 'init', ...(this.remote ? { url: file.url } : { file }), shared: this.shared }); } catch (error) { clearTimeout(this.initTimeout); this.worker.terminate(); this.rejectReady(error); }
@@ -179,8 +189,8 @@
           bytes = await new Promise((resolve, reject) => {
             if (this.pendingPrefetch) return reject(new Error('lazyRomReadError'));
             const id = this.prefetchId = (this.prefetchId || 0) + 1;
-            const timer = setTimeout(() => { this.pendingPrefetch = null; reject(new Error('lazyRomReadError')); }, 6000);
-            this.pendingPrefetch = { id, length: end - start, timer, resolve, reject };
+            const timer = setTimeout(() => { this.recordIoFailure('worker-prefetch-timeout', 'verification', start, end - start); this.pendingPrefetch = null; reject(new Error('lazyRomReadError')); }, 6000);
+            this.pendingPrefetch = { id, start, length: end - start, timer, resolve, reject };
             try { this.worker.postMessage({ type: 'prefetch', requestId: id, start, end }); }
             catch (error) { clearTimeout(timer); this.pendingPrefetch = null; reject(error); }
           });
@@ -207,17 +217,18 @@
           const end = Math.min(start + this.block, this.file.size);
           this.stats.pendingRead = { offset: start, length: end - start };
           this.changed(this.stats);
+          Atomics.store(this.state, 1, 0);
           Atomics.store(this.state, 0, 1);
           this.worker.postMessage({ type: 'read', start, end });
           // The core requires synchronous reads. Only the worker performs I/O;
           // the bounded shared-memory wait never allocates the full ROM.
-          const deadline = performance.now() + 5000;
+          const waitStarted = performance.now(), deadline = waitStarted + 5000;
           while (Atomics.load(this.state, 0) === 1) {
-            if (performance.now() >= deadline) { this.worker.terminate(); throw new Error('lazyRomReadError'); }
+            if (performance.now() >= deadline) { this.recordIoFailure('main-wait-timeout', 'playback', start, end - start, performance.now() - waitStarted); this.worker.terminate(); throw new Error('lazyRomReadError'); }
           }
-          if (Atomics.load(this.state, 0) !== 2) throw new Error('lazyRomReadError');
+          if (Atomics.load(this.state, 0) !== 2) { this.recordIoFailure(Atomics.load(this.state, 1), 'playback', start, end - start, performance.now() - waitStarted); throw new Error('lazyRomReadError'); }
           const received = Atomics.load(this.state, 1);
-          if (received !== end - start) throw new Error('lazyRomReadError');
+          if (received !== end - start) { this.recordIoFailure('worker-length-mismatch', 'playback', start, end - start, performance.now() - waitStarted); throw new Error('lazyRomReadError'); }
           bytes = this.bytes.slice(0, received);
           delete this.stats.pendingRead;
           this.stats.bytesRead += bytes.length; this.stats.largestRead = Math.max(this.stats.largestRead, bytes.length);
