@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.12.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.12.0">
-  <script src="/assets/js/i18n.js?v=2.12.0" defer></script>
-  <script src="/assets/js/changelog.js?v=2.12.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.12.1">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.12.1">
+  <script src="/assets/js/i18n.js?v=2.12.1" defer></script>
+  <script src="/assets/js/changelog.js?v=2.12.1" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-ds-touch">
+      <div class="release-meta"><span>2.12.1</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-ds-touch" data-i18n="releaseDsTouchTitle">DS screen touch routing</h2>
+      <ul><li data-i18n="releaseDsTouchDetails">Restored DS canvas hit testing on the pinned frontend while allowing touches through empty virtual-gamepad areas. Actual buttons and the D-pad remain interactive. Diagnostics count canvas touch/pointer events without recording coordinates. Safari game-level stylus behavior still requires device verification.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-shared-saves">
-      <div class="release-meta"><span>2.12.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.12.0</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-shared-saves" data-i18n="releaseSharedSavesTitle">One set of nine save slots</h2>
       <ul><li data-i18n="releaseSharedSavesDetails">The save panel, native quick-save/load controls, and native state toolbar share nine durable slots. Keys 1 and 2 save and load the selected slot; key 3 cycles through slots 1–9. Existing Retro Vault slots 1–3 remain available without conversion. Browser restarts preserve completed saves; failed writes retain the prior durable state.</li></ul>
     </article>

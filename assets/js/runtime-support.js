@@ -11,7 +11,7 @@
       this.restorers = [];
       this.wrapped = new WeakMap();
       this.failures = [];
-      this.input = { pointerEvents: 0, touchEvents: 0, keyEvents: 0, virtualControlEvents: 0, coreInputCalls: 0 };
+      this.input = { pointerEvents: 0, touchEvents: 0, keyEvents: 0, virtualControlEvents: 0, coreInputCalls: 0, canvasPointerEvents: 0, canvasTouchEvents: 0 };
       this.audioCheck = "native";
       for (const name of ["getGamepads", "webkitGetGamepads"]) this.trace(window.navigator, name, "navigator." + name);
       this.trace(window.navigator?.mediaDevices, "getUserMedia", "mediaDevices.getUserMedia");
@@ -19,6 +19,10 @@
         if (!this.emulator?.started || this.stopped) return;
         const key = event.type === "keydown" ? "keyEvents" : event.type === "touchstart" ? "touchEvents" : "pointerEvents";
         this.input[key] = Math.min(1000000, this.input[key] + 1);
+        if (event.target === this.emulator.canvas) {
+          const canvasKey = event.type === 'touchstart' ? 'canvasTouchEvents' : event.type === 'pointerdown' ? 'canvasPointerEvents' : null;
+          if (canvasKey) this.input[canvasKey] = Math.min(1000000, this.input[canvasKey] + 1);
+        }
         if (event.target?.closest?.('.ejs_virtualGamepad_button, .ejs_dpad_main')) this.input.virtualControlEvents = Math.min(1000000, this.input.virtualControlEvents + 1);
         if (this.input[key] === 1) this.onChange?.();
       };
@@ -83,6 +87,14 @@
     attach(emulator) {
       if (!emulator || this.stopped) return;
       this.emulator = emulator;
+      const host = emulator.elements?.parent;
+      const core = emulator.getCore?.();
+      if (emulator.ejs_version === '4.3.0-pre' && ['nds', 'melonds', 'desmume', 'desmume2015'].includes(core) && host?.classList && !this.dsTouchHost) {
+        const alreadyEnabled = host.classList.contains('rv-ds-touch');
+        host.classList.add('rv-ds-touch');
+        this.dsTouchHost = host;
+        this.restorers.push(() => { if (!alreadyEnabled) host.classList.remove('rv-ds-touch'); this.dsTouchHost = null; });
+      }
       if (emulator.isSafari && emulator.isMobile && emulator.ejs_version === "4.3.0-pre") {
         this.replace(emulator, "checkStarted", () => () => {
           // The prerelease assumes OpenAL.currentCtx exists. RWebAudio need not
@@ -104,6 +116,7 @@
     }
     snapshot() {
       const result = { ...this.input, audioCheck: this.audioCheck };
+      if (this.dsTouchHost) result.dsTouchRouting = "canvas-and-controls";
       const device = this.emulator?.settings?.['controller-port-device-p1'];
       if (/^\d{1,8}$/.test(String(device))) result.controllerPort1 = Number(device);
       try { if (typeof this.emulator?.isPopupOpen === "function") result.nativePopupOpen = this.emulator.isPopupOpen() === true; } catch {}

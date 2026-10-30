@@ -224,3 +224,20 @@ checking initial bytes, a block boundary, offsets above 2 GiB, and the final 256
 bytes. The measured cache stayed at 8 MiB with a 256 KiB maximum fetch; a server
 returning HTTP 200 was rejected without invoking the frontend full-file path.
 This is an FS/network integration check, not a commercial-game or Safari boot.
+
+## DS canvas routing (2.12.1)
+
+The exact pinned frontend assigns `ejs-canvas-no-pointer` to its canvas whenever
+it detects mobile/touch hardware. Its native stylesheet sets pointer-events to
+none, and the active virtual-gamepad parent enables its own hit testing. The
+Retro Vault DS-only host class restores canvas hit testing while leaving empty
+virtual-gamepad containers transparent to pointer targeting. Actual controls
+retain pointer-events auto. No coordinate conversion or synthetic input is added.
+
+Browser QA uses the pinned frontend constructor and its original stylesheet,
+loaded after the override CSS. It reproduces the disabled canvas before the
+patch, checks lower-screen taps and drags reach canvas event listeners, verifies
+virtual A and D-pad events still call native simulateInput, and checks shutdown
+restores the original CSS behavior. This tests event routing, not stylus behavior
+inside a running commercial ROM or on Safari. A fresh log now distinguishes
+canvasTouchEvents/canvasPointerEvents from virtual-control input counts.

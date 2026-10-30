@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.12.0**. Site releases use
+The current Retro Vault release is **2.12.1**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -388,3 +388,17 @@ state is still available through the explicit legacy import button. Slot listing
 reads metadata only. There is no periodic state capture. Native saves are queued
 in order and a failed write leaves the previous committed snapshot intact. Close
 cleanup waits for queued persistence alongside existing game-save flushing.
+
+## DS canvas touch routing (2.12.1)
+
+The pinned 4.3.0-pre frontend applies `ejs-canvas-no-pointer` to the canvas on
+touch devices, disabling pointer hit testing. For DS backends only, runtime
+support adds a scoped `rv-ds-touch` host class. CSS restores canvas hit testing
+and `touch-action: none`, lets empty gamepad containers pass through touches,
+and leaves actual virtual buttons and D-pad hit areas interactive. The existing
+core receives native browser events and retains its coordinate/layout handling;
+no synthetic stylus coordinates or replacement input driver are introduced.
+Other systems and explicitly older runtimes retain their existing behavior.
+The class is removed during shutdown. Diagnostics record only canvas event
+counts and routing mode, without coordinates or input contents. Game-level
+stylus behavior on the reporting Safari device is not yet verified.

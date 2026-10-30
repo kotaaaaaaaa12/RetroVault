@@ -1311,3 +1311,30 @@ test('close waits for queued native state persistence and restores native method
   assert.equal(env.window.EJS_emulator, null);
   assert.throws(() => env.manager.store.get(env.manager.gameKey, 10), { name: 'InvalidSaveSlot' });
 });
+
+
+test('pinned DS runtime routes canvas touch separately from virtual controls and restores on close', async () => {
+  const env = await environment(playerSource);
+  const host = env.document.createElement('div');
+  const canvas = env.document.createElement('canvas');
+  const emulator = { started: true, ejs_version: '4.3.0-pre', getCore: () => 'melonds', canvas, elements: { parent: host } };
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [], onChange() {} });
+  support.attach(emulator); support.attach(emulator);
+  assert.equal(host.classList.contains('rv-ds-touch'), true);
+  env.document.dispatch('touchstart', { target: canvas, type: 'touchstart' });
+  env.document.dispatch('pointerdown', { target: canvas, type: 'pointerdown' });
+  const snapshot = support.snapshot();
+  assert.equal(snapshot.canvasTouchEvents, 1); assert.equal(snapshot.canvasPointerEvents, 1);
+  assert.equal(snapshot.dsTouchRouting, 'canvas-and-controls');
+  support.stop(); assert.equal(host.classList.contains('rv-ds-touch'), false);
+});
+
+test('DS routing leaves other systems and explicit older runtimes unchanged', async () => {
+  const env = await environment(playerSource);
+  for (const [core, version] of [['fceumm','4.3.0-pre'], ['melonds','4.2.3']]) {
+    const host = env.document.createElement('div');
+    const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+    support.attach({ getCore: () => core, ejs_version: version, elements: { parent: host } });
+    assert.equal(host.classList.contains('rv-ds-touch'), false); support.stop();
+  }
+});

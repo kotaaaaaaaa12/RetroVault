@@ -220,3 +220,19 @@ html:lang(ja) .rv-save-root { font-family: system-ui, -apple-system, "Hiragino K
 @media(max-width: 740px) { #save-slots { grid-template-columns: 1fr; gap: 0; } .rv-save-brandline .vault-brand { font-size: .9rem; } .rv-save-header { gap: 16px; } }
 
 #save-root .rv-save-selected { border-color: var(--accent, #00aaff); }
+
+/* The pinned frontend disables canvas hit testing on touch devices. DS needs it
+   for the stylus; keep only actual virtual controls above the canvas interactive. */
+.rv-ds-touch canvas.ejs_canvas { pointer-events: auto !important; touch-action: none; }
+.rv-ds-touch .ejs_virtualGamepad_parent,
+.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_top,
+.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_bottom,
+.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_left,
+.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_right { pointer-events: none !important; }
+.rv-ds-touch .ejs_virtualGamepad_button,
+.rv-ds-touch .ejs_dpad_main,
+.rv-ds-touch .ejs_virtualGamepad_open,
+.rv-ds-touch .ejs_virtualGamepad_top > *,
+.rv-ds-touch .ejs_virtualGamepad_bottom > *,
+.rv-ds-touch .ejs_virtualGamepad_left > *,
+.rv-ds-touch .ejs_virtualGamepad_right > * { pointer-events: auto !important; }
