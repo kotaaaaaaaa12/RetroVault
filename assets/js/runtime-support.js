@@ -100,12 +100,19 @@
       else {
         const item = { source, detail, count: 1 };
         this.coreLog = [...this.coreLog, item].slice(-20);
-        if (/\[(?:ERROR|FATAL|CRITICAL)\]|<(?:Error|Critical)>|SET_MESSAGE:.*(?:failed|error|encrypted|unsupported|invalid)|^\s*(?:failed|error|fatal|unsupported|invalid|aborted)\b/i.test(detail)) {
+        if (!/This is not an error\./i.test(detail) && /\[(?:ERROR|FATAL|CRITICAL)\]|<(?:Error|Critical)>|SET_MESSAGE:.*(?:failed|error|encrypted|unsupported|invalid)|^\s*(?:failed|error|fatal|unsupported|invalid|aborted)\b/i.test(detail)) {
           // Keep the first failures even if secondary shutdown/configuration
           // errors follow the original cause.
           this.coreIssues = this.coreIssues.length < 6 ? [...this.coreIssues, item]
             : [...this.coreIssues.slice(0, 3), ...this.coreIssues.slice(-2), item];
         }
+      }
+      // In this pinned Azahar backend, loader ResultStatus 8 is ErrorEncrypted.
+      // A frontend start callback can still follow this native load failure.
+      if (this.coreStartup && /Core <Critical>.*Failed to determine system mode \(Error 8\)!/.test(detail)) {
+        const error = new Error('The 3DS core rejected this ROM as encrypted (loader Error 8).');
+        error.name = 'EncryptedRomError';
+        this.failed(error, 'Azahar.load');
       }
       // Native output can be frequent. Persist at most once per second;
       // errors remain in a separate bounded list when later output rolls over.

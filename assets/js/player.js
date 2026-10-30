@@ -216,7 +216,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.13.1",
+    appVersion: "2.13.3",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -513,7 +513,11 @@ function startEmulator(game, gameUrl, requestedThreads) {
   if (typeof window.RetroRuntimeSupport === "function") {
     runtimeSupport = new window.RetroRuntimeSupport({
       contexts: existingAudioContexts,
-      onFailure(error, operation) { reportPlayerError("runtimeError", { message: error?.message || String(error) }, { ...errorContext(error, "operation"), operation }); sampleDiagnostics(); },
+      onFailure(error, operation) {
+        reportPlayerError(error?.name === 'EncryptedRomError' ? 'encryptedRom' : 'runtimeError',
+          { message: error?.message || String(error) }, { ...errorContext(error, "operation"), operation });
+        sampleDiagnostics();
+      },
       onChange() { sampleDiagnostics(); }
     });
   }
@@ -573,7 +577,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     runtimeSupport?.attach(window.EJS_emulator);
     hideMessage();
     if (diagnostics && diagnostics.gameStartedAtMs === null) diagnostics.gameStartedAtMs = Date.now();
-    sampleDiagnostics("running");
+    sampleDiagnostics(displayedMessage?.isError ? "error" : "running");
     saveManager?.start();
     updateVisibility();
     notifyParent("retro-vault-player-start", { savesAvailable: !!saveManager });
@@ -789,7 +793,7 @@ function updateVisibility() {
       pausedForVisibility = false;
       emulator.play?.();
     }
-    sampleDiagnostics("running");
+    sampleDiagnostics(displayedMessage?.isError ? "error" : "running");
   }
 }
 

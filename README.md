@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.13.1**. Site releases use
+The current Retro Vault release is **2.13.3**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -498,3 +498,53 @@ and Azahar `callMain` with invalid synthetic content captured a native loader
 failure despite a zero entry-point return code. This is diagnostic evidence
 collection, not a verified fix for the reporting device's game. The original
 save database, ROM mapping, core pin and renderer settings are unchanged.
+
+
+## Encrypted 3DS load errors (2.13.2)
+
+The pinned Azahar loader's exact critical message `Failed to determine system
+mode (Error 8)!` means `Loader::ResultStatus::ErrorEncrypted`. Runtime support
+surfaces it as `EncryptedRomError` / `Azahar.load` and the player displays a
+localized, persistent notification explaining that compatible decrypted ROM
+content is required. A later frontend start notification or visibility update
+does not replace the error phase with running. Other native warnings remain
+in diagnostics without triggering this encrypted-ROM notification. Lines
+explicitly saying `This is not an error.` do not fill the retained issue list.
+
+This mapping was checked against the Azahar loader enum, the core load error
+switch, and the NCCH encryption flag check, and reproduced with a synthetic
+NCCH header in the actual pinned binary. No commercial ROM was used in the
+check. The application does not alter ROM bytes or clear encryption flags.
+This improves error reporting; it does not make encrypted content loadable.
+
+References:
+- https://github.com/EmulatorJS/azahar/blob/master/src/core/loader/loader.h
+- https://github.com/EmulatorJS/azahar/blob/master/src/core/core.cpp
+- https://github.com/EmulatorJS/azahar/blob/master/src/core/file_sys/ncch_container.cpp
+
+
+## Observe header flags without assuming payload status (2.13.3)
+
+The Azahar ErrorEncrypted classification is established by the log, but the
+user's ROM payload has not been independently examined. The notification now
+reports the core classification and asks to check format/decryption status,
+without asserting that the payload is known to be encrypted or prescribing a
+replacement as the only established resolution.
+
+Library range diagnostics record the actual loaded filename and structural
+metadata from the already downloaded first 256 KiB. NCSD partition zero is
+located using its little-endian media-unit offset and checked against the
+object size. A recognized NCCH header records the raw flag byte at NCCH+0x18F
+and its no-crypto bit (bit 2). Short/unknown/out-of-probe headers are reported
+without guessing their flags. No additional fetch, payload copy or mutation
+is performed for this inspection.
+
+When a native file-system read spans that flag position, diagnostics observe
+the byte in the buffer delivered to the caller, count checks and compare it
+with the original probe. Any observed mismatch is retained. These values
+verify this part of the byte-delivery path; they do not perform cryptographic
+validation or independently establish the decryption state of the payload.
+No raw header block, key, signature or payload bytes are exported. Local-only
+ROM diagnostics retain their prior behavior; this probe inspection applies
+to the library range path. The uploaded diagnostic log and original ROM are
+not changed.

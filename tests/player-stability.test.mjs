@@ -1457,3 +1457,30 @@ test('native logs are bounded, redact URL secrets, retain issues and leave other
     assert.equal(other.nativeSnapshot(), null); other.stop();
   }
 });
+
+test('Azahar encrypted-content errors remain visible after the native frontend start callback', async () => {
+  const game = { ...games[0], core: '3ds', rom: 'rom/test/library.3ds' };
+  const env = await environment(playerSource, { games: [game], search: '?id=1&threads=1&lang=ja' });
+  env.window.RetroLazyRom = { install() { return { stats: {}, stop() {} }; } };
+  const emulator = { ejs_version: '4.3.0-pre', getCore: () => 'azahar', started: true };
+  env.window.EJS_emulator = emulator; env.window.EJS_ready();
+  const support = vm.runInContext('runtimeSupport', env.context);
+  support.coreOutput('print', ['invalid core option save-state-location. This is not an error.']);
+  assert.equal(support.coreIssues.length, 0);
+  support.coreOutput('printErr', ['[ERROR] [EMSCRIPTEN/INPUT] failed to create pointerlockchange callback: -1']);
+  let log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.errors.length, 0);
+  const detail = '[1793340625.799660] Core <Critical> core/core.cpp:Load:342: Failed to determine system mode (Error 8)!';
+  support.coreOutput('printErr', [detail]);
+  support.coreOutput('printErr', [detail]);
+  env.window.EJS_onGameStart();
+  log = JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(log.phase, 'error'); assert.equal(log.errors.length, 1);
+  assert.equal(log.errors[0].key, 'encryptedRom'); assert.equal(log.errors[0].operation, 'Azahar.load');
+  assert.match(env.elements.get('player-message').textContent, /暗号化/);
+  assert.equal(env.elements.get('player-message').classList.contains('hidden'), false);
+  assert.ok(env.posts.some(post => post.type === 'retro-vault-player-error' && post.key === 'encryptedRom'));
+  env.window.RetroI18n.setLanguage('en');
+  assert.match(env.elements.get('player-message').textContent, /encrypted ROM/i);
+  await vm.runInContext('shutdownPlayer()', env.context);
+});

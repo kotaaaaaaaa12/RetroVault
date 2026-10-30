@@ -14,6 +14,34 @@ class Worker {
 }
 const window={};
 vm.runInNewContext(source,{window,Worker,SharedArrayBuffer,Atomics,performance,setTimeout,clearTimeout});
+
+test('header metadata reports raw NCCH flags without claiming payload decryption or modifying bytes', () => {
+  const bytes = new Uint8Array(0x200);
+  bytes.set([78, 67, 67, 72], 0x100);
+  const original = bytes.slice();
+  const encryptedFlag = window.RetroLazyRom.inspectHeader(bytes, 1048576);
+  assert.equal(encryptedFlag.format, 'NCCH'); assert.equal(encryptedFlag.flagsByte, 0);
+  assert.equal(encryptedFlag.noCryptoFlag, false); assert.equal(encryptedFlag.flagsOffset, 0x18f);
+  assert.deepEqual(bytes, original);
+  bytes[0x18f] = 4;
+  const clearFlag = window.RetroLazyRom.inspectHeader(bytes, 1048576);
+  assert.equal(clearFlag.noCryptoFlag, true); assert.equal(bytes[0x18f], 4);
+  assert.equal('decrypted' in clearFlag, false);
+});
+
+test('NCSD header inspection follows partition zero and bounds observations to the existing probe', () => {
+  const bytes = new Uint8Array(262144), view = new DataView(bytes.buffer);
+  bytes.set([78, 67, 83, 68], 0x100);
+  view.setUint32(0x120, 0x20, true); view.setUint32(0x124, 1024, true);
+  bytes.set([78, 67, 67, 72], 0x4000 + 0x100); bytes[0x4000 + 0x18f] = 4;
+  const info = window.RetroLazyRom.inspectHeader(bytes, 1048576);
+  assert.equal(info.ncchOffset, 0x4000); assert.equal(info.noCryptoFlag, true);
+  view.setUint32(0x120, 512, true);
+  assert.equal(window.RetroLazyRom.inspectHeader(bytes, 1048576).state, 'outside-probe');
+  assert.equal(window.RetroLazyRom.inspectHeader(bytes, 400000).state, 'invalid-partition-bounds');
+  assert.equal(window.RetroLazyRom.inspectHeader(new Uint8Array(20), 20).state, 'short-probe');
+  assert.equal(window.RetroLazyRom.inspectHeader(new Uint8Array(512), 512).state, 'unrecognized');
+});
 test('large file reads preserve high offsets, bound the cache and stop the worker',async()=>{
   const reader=new window.RetroLazyRom.LazyRom({size:4294967296,name:'test.3ds'});await reader.ready;
   assert.deepEqual([...reader.read(4294967040,256)],Array.from({length:256},(_,i)=>i));

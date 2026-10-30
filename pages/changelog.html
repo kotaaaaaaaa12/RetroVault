@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.1">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.13.1">
-  <script src="/assets/js/i18n.js?v=2.13.1" defer></script>
-  <script src="/assets/js/changelog.js?v=2.13.1" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.3">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.13.3">
+  <script src="/assets/js/i18n.js?v=2.13.3" defer></script>
+  <script src="/assets/js/changelog.js?v=2.13.3" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,18 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-rom-header">
+      <div class="release-meta"><span>2.13.3</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-rom-header" data-i18n="releaseHeaderTitle">Record the 3DS ROM header flags</h2>
+      <ul><li data-i18n="releaseHeaderDetails">Library ROM diagnostics now record the loaded filename, NCSD/NCCH header metadata, the no-crypto flag, and the corresponding flag bytes delivered to the core. Inspection reuses the existing range probe without extra downloads or modifying the file. A header flag or loader classification alone does not independently verify payload decryption.</li></ul>
+    </article>
+    <article class="release" aria-labelledby="release-encrypted-rom">
+      <div class="release-meta"><span>2.13.2</span><time datetime="2026-10-30">2026-10-30</time></div>
+      <h2 id="release-encrypted-rom" data-i18n="releaseEncryptedTitle">Explain encrypted 3DS ROM failures</h2>
+      <ul><li data-i18n="releaseEncryptedDetails">The pinned Azahar encrypted-content loader error now produces a translated notification. A later frontend start callback does not clear that error. Explicitly harmless core-option notices no longer occupy the retained issue list. ROM contents and encryption flags are not changed.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-core-output">
-      <div class="release-meta"><span>2.13.1</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.13.1</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-core-output" data-i18n="releaseCoreOutputTitle">Record native 3DS startup messages</h2>
       <ul><li data-i18n="releaseCoreOutputDetails">3DS diagnostics now capture bounded native core output, preserve startup issues, and record entry-point return values, WebGL context creation, and canvas dimensions. Production caching remains enabled. A frontend start notification or zero return code does not prove that the game loaded. This update gathers evidence for black-screen failures; Safari game startup is not yet verified.</li></ul>
     </article>

@@ -2,16 +2,38 @@
 (() => {
   const BLOCK = 1024 * 1024;
   const LIMIT = 8;
+  function inspectHeader(bytes, size) {
+    // Report only container metadata. The flag describes the header; it does
+    // not independently prove whether the content bytes were decrypted.
+    if (bytes.length < 0x200) return { format: 'unknown', state: 'short-probe' };
+    const magic = at => String.fromCharCode(...bytes.subarray(at + 0x100, at + 0x104));
+    const format = magic(0);
+    if (!['NCSD', 'NCCH'].includes(format)) return { format: 'unknown', state: 'unrecognized' };
+    const result = { format };
+    let offset = 0;
+    if (format === 'NCSD') {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      offset = view.getUint32(0x120, true) * 512;
+      const length = view.getUint32(0x124, true) * 512;
+      result.partitionOffset = offset; result.partitionSize = length;
+      if (!offset || !length || offset + length > size) return { ...result, state: 'invalid-partition-bounds' };
+    }
+    result.ncchOffset = offset;
+    if (offset + 0x200 > bytes.length) return { ...result, state: 'outside-probe' };
+    if (magic(offset) !== 'NCCH') return { ...result, state: 'missing-ncch-magic' };
+    const flagsOffset = offset + 0x18f;
+    return { ...result, state: 'observed', flagsOffset, flagsByte: bytes[flagsOffset], noCryptoFlag: !!(bytes[flagsOffset] & 4) };
+  }
   class LazyRom {
     constructor(file, changed = () => {}) {
       this.remote = typeof file.url === 'string';
       this.block = this.remote ? 256 * 1024 : BLOCK;
       this.file = file; this.changed = changed; this.cache = new Map(); this.stopped = false;
-      this.stats = { mode: this.remote ? 'lazy-range' : 'lazy-local', size: file.size, reads: 0, bytesRead: 0, cacheBytes: 0, cacheLimit: BLOCK * LIMIT, largestRead: 0, state: 'preparing' };
+      this.stats = { mode: this.remote ? 'lazy-range' : 'lazy-local', fileName: String(file.name || '').slice(0, 255), size: file.size, reads: 0, bytesRead: 0, cacheBytes: 0, cacheLimit: BLOCK * LIMIT, largestRead: 0, state: 'preparing' };
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.1');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.3');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
         this.initTimeout = setTimeout(() => { this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
@@ -23,7 +45,9 @@
             const { size, firstLength } = event.data;
             if (!Number.isSafeInteger(size) || size <= 0 || firstLength !== Math.min(size, this.block)) return reject(new Error('lazyRomUnavailable'));
             this.file.size = size; this.stats.size = size;
-            this.cache.set(0, this.bytes.slice(0, firstLength));
+            const first = this.bytes.slice(0, firstLength);
+            this.cache.set(0, first);
+            this.stats.header = inspectHeader(first, size);
             this.stats.cacheBytes = firstLength; this.stats.bytesRead = firstLength; this.stats.largestRead = firstLength;
           }
           this.stats.state = 'ready'; this.changed(this.stats); resolve();
@@ -86,6 +110,15 @@
               const chunk = reader.read(position + done, Math.min(BLOCK, total - done));
               buffer.set(chunk, offset + done);
             }
+            const header = reader.stats.header;
+            if (header?.state === 'observed' && position <= header.flagsOffset && position + total > header.flagsOffset) {
+              const flag = buffer[offset + header.flagsOffset - position];
+              header.deliveredFlagsByte = flag;
+              header.deliveredNoCryptoFlag = !!(flag & 4);
+              header.deliveredMatchesProbe = flag === header.flagsByte;
+              header.deliveryMismatchObserved = header.deliveryMismatchObserved === true || flag !== header.flagsByte;
+              header.deliveryChecks = Math.min(1000000, (header.deliveryChecks || 0) + 1);
+            }
             if (reader.stats.reads === 1 || reader.stats.reads % 64 === 0) reader.changed(reader.stats);
             return total;
           } catch (error) { reader.stats.state = 'failed'; reader.changed(reader.stats); throw new FS.ErrnoError(29); }
@@ -122,5 +155,5 @@
     emulator.download = wrapped;
     return { stats: reader.stats, stop() { reader.stop(); if (emulator.download === wrapped) emulator.download = original; } };
   }
-  window.RetroLazyRom = { LazyRom, install };
+  window.RetroLazyRom = { LazyRom, install, inspectHeader };
 })();
