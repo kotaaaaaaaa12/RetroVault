@@ -1,6 +1,7 @@
 import { SYSTEMS, detectSystem, systemFor } from './systems.js';
 import { formatFileSize as bytes } from './file-size.js';
 import { uploadPart } from './upload-part.js';
+import { summarizeStorage } from './storage-usage.js?v=2.13.0';
 
 const i18n = window.RetroI18n;
 const t = (key, values) => i18n.t(key, values);
@@ -181,7 +182,51 @@ async function moveGame(game, direction) {
     problem(error);
   } finally { setBusy(false); }
 }
+function renderStorageUsage() {
+  const usage = summarizeStorage(files, games);
+  const segments = element('storage-segments'); segments.replaceChildren();
+  const rows = element('storage-usage-rows'); rows.replaceChildren();
+  const percent = fraction => fraction > 0 && fraction * 100 < .1
+    ? '<0.1%' : (fraction * 100).toFixed(1) + '%';
+  let offset = 0;
+  for (const group of usage.categories) {
+    const fraction = usage.total ? group.size / usage.total : 0;
+    const label = group.labelKey ? t(group.labelKey) : i18n.systemLabel(group.label);
+    if (fraction > 0) {
+      const segment = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      if (fraction === 1) {
+        segment.setAttribute('d', 'M189 100 A89 89 0 1 1 11 100 A89 89 0 1 1 189 100 M167 100 A67 67 0 1 0 33 100 A67 67 0 1 0 167 100');
+        segment.setAttribute('fill-rule', 'evenodd');
+      } else {
+        const start = offset / 100 * 2 * Math.PI, end = start + fraction * 2 * Math.PI;
+        const point = (radius, angle) => `${100 + radius * Math.cos(angle)} ${100 + radius * Math.sin(angle)}`;
+        const large = fraction > .5 ? 1 : 0;
+        segment.setAttribute('d', `M${point(89, start)} A89 89 0 ${large} 1 ${point(89, end)} L${point(67, end)} A67 67 0 ${large} 0 ${point(67, start)} Z`);
+      }
+      segment.setAttribute('fill', group.color);
+      segments.appendChild(segment); offset += fraction * 100;
+    }
+    const row = document.createElement('tr'); row.dataset.storageCategory = group.id;
+    const name = document.createElement('th'); name.scope = 'row';
+    const category = document.createElement('span'); category.className = 'storage-category-name';
+    const swatch = document.createElement('span'); swatch.className = 'storage-swatch'; swatch.style.backgroundColor = group.color; swatch.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span'); text.textContent = label;
+    category.append(swatch, text);
+    const count = document.createElement('small'); count.textContent = t('adminStorageFileCount', { count: group.count });
+    name.append(category, count);
+    const size = document.createElement('td'); size.textContent = bytes(group.size);
+    const share = document.createElement('td'); share.textContent = percent(fraction);
+    row.append(name, size, share); rows.appendChild(row);
+  }
+  element('storage-total').textContent = bytes(usage.total);
+  element('storage-total-count').textContent = t('adminStorageFileCount', { count: usage.count });
+  element('storage-table-total').textContent = bytes(usage.total);
+  element('storage-table-share').textContent = usage.total ? '100.0%' : '0.0%';
+  element('storage-usage-empty').hidden = usage.count > 0;
+  element('storage-usage').hidden = false;
+}
 function renderFiles() {
+  renderStorageUsage();
   element('storage-summary').textContent = t('adminStorageSummary', { count: files.length, size: bytes(files.reduce((total, file) => total + (file.status === 'ready' ? file.size : 0), 0)) });
   const root = element('admin-files');
   const opened = new Set(Array.from(root.querySelectorAll('details[open]'), group => group.dataset.fileKind));

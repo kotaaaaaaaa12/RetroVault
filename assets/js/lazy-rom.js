@@ -11,7 +11,7 @@
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.12.3');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.0');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
         this.initTimeout = setTimeout(() => { this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
@@ -108,7 +108,9 @@
     if (!/\.(3ds|cci|cxi|app|elf|axf)$/i.test(file.name || '') || emulator.ejs_version !== '4.3.0-pre' || emulator.getCore() !== 'azahar' || typeof emulator.download !== 'function') throw new Error('lazyRomUnavailable');
     const reader = new LazyRom(file, changed); const original = emulator.download;
     const wrapped = async function(url, type) {
-      if (url !== source || type?.name !== 'rom') return Reflect.apply(original, this, arguments);
+      // This adapter owns this exact ROM source. The pinned frontend labels its
+      // download type "ROM"; routing must not depend on that display label.
+      if (url !== source) return Reflect.apply(original, this, arguments);
       try {
         reader.stats.state = 'mounting'; reader.changed(reader.stats);
         await reader.ready;

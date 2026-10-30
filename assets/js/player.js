@@ -210,7 +210,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.12.3",
+    appVersion: "2.13.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -527,7 +527,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
         // Stop instead of silently retrying a multi-gigabyte allocation.
         const original = emulator.download;
         emulator.download = function(url, type) {
-          if (url === gameUrl && type?.name === 'rom') { reportPlayerError('lazyRomUnavailable'); return Promise.reject(new Error('lazyRomUnavailable')); }
+          if (url === gameUrl) { reportPlayerError('lazyRomUnavailable'); return Promise.reject(new Error('lazyRomUnavailable')); }
           return Reflect.apply(original, this, arguments);
         };
         reportPlayerError('lazyRomUnavailable');
@@ -541,7 +541,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     }
     if (typeof emulator?.download === 'function') {
       const original = emulator.download;
-      emulator.download = function(url, type) { if (type?.name === 'rom') sampleDiagnostics('loading-rom'); return Reflect.apply(original, this, arguments); };
+      emulator.download = function(url, type) { if (url === gameUrl) sampleDiagnostics('loading-rom'); return Reflect.apply(original, this, arguments); };
     }
     runtimeSupport?.attach(emulator);
     syncEmulatorLanguage();

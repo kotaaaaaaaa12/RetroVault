@@ -1241,9 +1241,22 @@ test('library 3DS uses the range adapter and diagnostics follow actual startup m
   const log = () => JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
   assert.equal(emulator.initModule('wasm'),17);assert.equal(log().phase,'initializing-core');assert.deepEqual(forwarded,[['wasm']]);
   assert.equal(emulator.downloadFiles(),18);assert.equal(log().phase,'preparing-files');
-  assert.equal(emulator.download(source,{name:'rom'}).url,source);assert.equal(log().phase,'loading-rom');
+  assert.equal(emulator.download(source,{name:'ROM'}).url,source);assert.equal(log().phase,'loading-rom');
   assert.equal(emulator.startGame(),19);assert.equal(log().phase,'starting-game');
   assert.equal(log().romIO.mode,'lazy-range');
+});
+
+test('unsupported 3DS adapters block native uppercase ROM downloads without blocking other files', async () => {
+  const game = { ...games[0], core: '3ds', rom: 'rom/test/library.3ds' };
+  const env = await environment(playerSource, { games: [game], search: '?id=1&threads=1' });
+  env.window.RetroLazyRom = { install() { throw new Error('lazyRomUnavailable'); } };
+  const forwarded = [];
+  const emulator = { download(url, type) { forwarded.push({ url, type }); return 'native'; } };
+  env.window.EJS_emulator = emulator; env.window.EJS_ready();
+  await assert.rejects(emulator.download(env.window.EJS_gameUrl, { name: 'ROM' }), /lazyRomUnavailable/);
+  assert.equal(forwarded.length, 0);
+  assert.equal(emulator.download('/bios/test.bin', { name: 'BIOS' }), 'native');
+  assert.equal(forwarded.length, 1);
 });
 
 

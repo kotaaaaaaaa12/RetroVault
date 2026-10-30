@@ -8,12 +8,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.12.3">
-  <link rel="stylesheet" href="/assets/css/admin.css?v=2.12.3">
-  <script src="/assets/js/i18n.js?v=2.12.3" defer></script>
-  <link rel="stylesheet" href="/assets/css/notices.css?v=2.12.3">
-  <script src="/assets/js/notices.js?v=2.12.3" defer></script>
-  <script type="module" src="/assets/js/admin.js?v=2.12.3"></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.0">
+  <link rel="stylesheet" href="/assets/css/admin.css?v=2.13.0">
+  <script src="/assets/js/i18n.js?v=2.13.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.13.0">
+  <script src="/assets/js/notices.js?v=2.13.0" defer></script>
+  <script type="module" src="/assets/js/admin.js?v=2.13.0"></script>
 </head>
 <body>
 <main class="admin-shell">
@@ -73,7 +73,28 @@
       </form>
     </section>
   </div>
-  <details class="panel"><summary data-i18n="adminStorage">File storage</summary><p id="storage-summary"></p><p class="hint" data-i18n="adminStorageHelp">Deleting a game entry keeps its files. Remove unused files here. Files referenced by any game, including drafts and trash, cannot be removed.</p><div id="admin-files"></div></details>
+  <details id="file-storage" class="panel">
+    <summary data-i18n="adminStorage">File storage</summary>
+    <section id="storage-usage" class="storage-usage" aria-labelledby="storage-usage-title" hidden>
+      <div class="storage-usage-heading"><h2 id="storage-usage-title" data-i18n="adminStorageUsage">Storage usage</h2><p id="storage-summary" class="hint"></p></div>
+      <p class="hint" data-i18n="adminStorageUsageHelp">Completed uploads only. Shared files are counted once. Uploads in progress are excluded.</p>
+      <div class="storage-layout">
+        <div class="storage-donut">
+          <svg viewBox="0 0 200 200" aria-hidden="true" focusable="false"><circle cx="100" cy="100" r="78" fill="none" stroke="var(--border)" stroke-width="22"/><g id="storage-segments" transform="rotate(-90 100 100)"></g></svg>
+          <div class="storage-donut-center"><span data-i18n="adminStorageTotal">Total</span><strong id="storage-total"></strong><small id="storage-total-count"></small></div>
+        </div>
+        <table class="storage-table">
+          <caption class="sr-only" data-i18n="adminStorageBreakdown">Capacity by category</caption>
+          <thead><tr><th scope="col" data-i18n="adminStorageCategory">Category</th><th scope="col" data-i18n="adminStorageCapacity">Capacity</th><th scope="col" data-i18n="adminStorageShare">Share</th></tr></thead>
+          <tbody id="storage-usage-rows"></tbody>
+          <tfoot><tr><th scope="row" data-i18n="adminStorageTotal">Total</th><td id="storage-table-total"></td><td id="storage-table-share"></td></tr></tfoot>
+        </table>
+      </div>
+      <p id="storage-usage-empty" class="hint" data-i18n="adminStorageEmpty" hidden>No completed uploads yet.</p>
+    </section>
+    <p class="hint" data-i18n="adminStorageHelp">Deleting a game entry keeps its files. Remove unused files here. Files referenced by any game, including drafts and trash, cannot be removed.</p>
+    <div id="admin-files"></div>
+  </details>
   <dialog id="confirm-dialog"><p id="confirm-text" tabindex="-1"></p><div class="actions"><button id="confirm-no" type="button" data-i18n="cancel">CANCEL</button><button id="confirm-yes" type="button" data-i18n="continueAction">Continue</button></div></dialog>
 </main>
 </body>

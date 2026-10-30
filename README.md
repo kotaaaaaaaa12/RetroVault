@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.12.3**. Site releases use
+The current Retro Vault release is **2.13.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -426,3 +426,48 @@ Source behavior was checked against the EmulatorJS melonDS fork at
 `18a057d372783b42d7e297b8731f3c3d673cdcab`, `src/libretro/input.cpp` and
 `src/libretro/libretro_core_options.h`. This source check does not establish
 that every deployed core binary was built from that commit.
+
+
+## Native ROM routing correction (2.12.4)
+
+The pinned frontend calls `download(config.gameUrl, downloadType.rom)` with
+`downloadType.rom.name === "ROM"`. Earlier adapter and diagnostic guards checked
+`"rom"`. The range worker could finish its initial 256 KiB probe while the
+native downloader proceeded to fetch the entire ROM separately. Earlier unit
+fixtures and the direct Azahar-FS check used a lowercase invented download type
+and did not cover the native `downloadFiles()` pipeline.
+
+The adapter now owns its exact URL or File source, independent of the download
+label. Other sources retain native behavior. The unsupported-adapter guard and
+ROM phase tracking use the same exact-source comparison. Mount/read failures
+do not retry through the full-file downloader. Existing cache limits, range
+validation, save storage and core version remain unchanged.
+
+A browser reproduction with the actual pinned frontend's `downloadFiles()`,
+`initializeGameManager()` and `downloadType.rom`, plus the real pinned Azahar
+file system, reproduced the old whole-file request. With the fix, a synthetic
+4 GiB server object was accessed only through 256 KiB ranges, including offsets
+above 2 GiB. The test stops before calling the game's entry point and does not
+establish game compatibility or Safari startup success. The reporting Safari
+log from 2.12.3 had a ready range probe, zero adapter reads, and a separate HTTP
+200 ROM GET, consistent with this reproduced integration failure.
+
+
+## Storage usage overview (2.13.0)
+
+The management page's File storage section starts with a doughnut chart and
+an accessible category table showing capacity, percentage, and file count.
+It summarizes existing catalog/file metadata in the browser without reading
+ROM bodies, querying R2 listings, or adding a statistics database.
+
+Only completed (`ready`) file records are counted, once per storage key.
+Uploading and deleting records are excluded; this is a completed-upload
+inventory rather than an R2 billing report. ROMs use saved system associations
+from all games, including drafts/trash and parent ROM references. Unattached
+ROMs use recognized extensions. Conflicting system references, ambiguous core
+aliases without a recognized extension, and unknown formats are unclassified.
+Thumbnails, BIOS, patches, and unclassified ROMs each retain a separate row,
+including when empty. Hardware rows appear for stored ROM files, and all rows
+are ordered by capacity. Data refreshes after saves, uploads and deletions;
+language changes rerender labels without changing totals. No chart service or
+external chart library is used.

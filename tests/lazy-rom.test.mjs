@@ -31,6 +31,28 @@ test('unsupported runtimes are rejected before the normal download method change
   assert.equal(emulator.download,original);
 });
 
+test('the exact ROM source uses the adapter with native uppercase metadata and never falls back', async () => {
+  const file = { name: 'test.3ds', size: 4294967296 };
+  const node = { node_ops: { getattr() { return {}; }, setattr() {} }, stream_ops: {} };
+  const FS = { createDataFile() {}, lookupPath() { return { node }; }, ErrnoError: Error };
+  const forwarded = [];
+  const original = (url, type) => { forwarded.push({ url, type }); return 'native'; };
+  const emulator = { ejs_version: '4.3.0-pre', getCore: () => 'azahar', config: { gameUrl: file }, gameManager: { FS }, download: original };
+  const installed = window.RetroLazyRom.install(emulator, file);
+  try {
+    const record = await emulator.download(file, { name: 'ROM', dontCache: false });
+    assert.equal(record.files[0].filename, file.name);
+    assert.equal(installed.stats.state, 'mounted');
+    assert.equal(forwarded.length, 0);
+    assert.equal(await emulator.download('/bios/test.bin', { name: 'BIOS' }), 'native');
+    assert.equal(forwarded.length, 1);
+    FS.createDataFile = () => { throw new Error('mount failed'); };
+    await assert.rejects(emulator.download(file, { name: 'ROM' }), /mount failed/);
+    assert.equal(forwarded.length, 1);
+  } finally { installed.stop(); }
+  assert.equal(emulator.download, original);
+});
+
 const workerSource = await readFile(new URL('../assets/js/rom-reader-worker.js', import.meta.url), 'utf8');
 function workerEnvironment(fetch) {
   const messages = [];

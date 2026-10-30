@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.12.3">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.12.3">
-  <script src="/assets/js/i18n.js?v=2.12.3" defer></script>
-  <script src="/assets/js/changelog.js?v=2.12.3" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.0">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.13.0">
+  <script src="/assets/js/i18n.js?v=2.13.0" defer></script>
+  <script src="/assets/js/changelog.js?v=2.13.0" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,18 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-storage">
+      <div class="release-meta"><span>2.13.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-storage" data-i18n="releaseStorageTitle">Storage usage by system</h2>
+      <ul><li data-i18n="releaseStorageDetails">File storage now includes a doughnut chart and a capacity, share, and file-count list. Completed ROM uploads are grouped by system; thumbnails, BIOS, patches, and unclassified ROMs each have a separate category. Shared files are counted once, and uploads in progress are excluded. The view updates after library/file changes and language switches.</li></ul>
+    </article>
+    <article class="release" aria-labelledby="release-rom-routing">
+      <div class="release-meta"><span>2.12.4</span><time datetime="2026-10-30">2026-10-30</time></div>
+      <h2 id="release-rom-routing" data-i18n="releaseRomRoutingTitle">Use block reads for native 3DS downloads</h2>
+      <ul><li data-i18n="releaseRomRoutingDetails">Fixed an integration error where the native uppercase ROM download type bypassed block reads and used the full-file downloader. Routing now matches the exact ROM source; unsupported adapters stop that source without falling back. Loading diagnostics use the same source match. The pinned native pipeline and Azahar file system passed range-only reads beyond 2 GiB with a synthetic file; Safari game startup remains unverified.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-language-focus">
-      <div class="release-meta"><span>2.12.3</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.12.3</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-language-focus" data-i18n="releaseLanguageFocusTitle">Release language selector focus</h2>
       <ul><li data-i18n="releaseLanguageFocusDetails">All language selectors now share focus cleanup after a selection, including the changelog and core comparison pages. Native picker dismissal is checked again without moving focus away from another control.</li></ul>
     </article>
