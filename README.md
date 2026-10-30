@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.13.0**. Site releases use
+The current Retro Vault release is **2.13.1**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -471,3 +471,30 @@ including when empty. Hardware rows appear for stored ROM files, and all rows
 are ordered by capacity. Data refreshes after saves, uploads and deletions;
 language changes rerender labels without changing totals. No chart service or
 external chart library is used.
+
+
+## Native 3DS startup diagnostics (2.13.1)
+
+For the pinned Azahar backend only, runtime support wraps the native core
+factory immediately before `initModule()` invokes it. It preserves the
+frontend's print callbacks while retaining up to 20 native output lines of
+500 characters, plus up to six issue lines. The earliest three issues remain
+when later errors arrive. URL credentials, queries and fragments are removed.
+Persistence is coalesced to once per second. Original callbacks and exceptions
+are preserved, and hooks restore during shutdown.
+
+Azahar entry-point arguments include `-v` to expose native startup messages;
+the frontend production debug/cache configuration remains unchanged. Diagnostics
+record entry-point invocation/return, numeric return code when available,
+observed WebGL context creation and canvas dimensions. No additional graphics
+context, screenshot, framebuffer read or ROM copy is created. The final native
+snapshot preserves dimensions from before Close releases the canvas. Native
+output after Close is ignored by diagnostics and forwarded as before.
+
+The reporting 2.13.0 log had 20 adapter reads, a frontend start notification,
+no captured errors and no audio contexts. That does not identify the cause of
+the black screen. A browser check using the actual pinned frontend `initModule`
+and Azahar `callMain` with invalid synthetic content captured a native loader
+failure despite a zero entry-point return code. This is diagnostic evidence
+collection, not a verified fix for the reporting device's game. The original
+save database, ROM mapping, core pin and renderer settings are unchanged.

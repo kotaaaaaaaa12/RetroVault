@@ -181,6 +181,12 @@ function sampleDiagnostics(phase) {
   if (runtimeSupport) {
     diagnostics.input = runtimeSupport.snapshot();
     diagnostics.operationFailures = runtimeSupport.failures;
+    const native = runtimeSupport.nativeSnapshot();
+    if (native) {
+      diagnostics.coreStartup = native.startup;
+      diagnostics.coreLog = native.log;
+      diagnostics.coreIssues = native.issues;
+    }
   }
   if (lazyRom) diagnostics.romIO = { ...lazyRom.stats };
   if (resourceDiagnostics) {
@@ -210,7 +216,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.13.0",
+    appVersion: "2.13.1",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },

@@ -1397,3 +1397,63 @@ test('DS mode diagnostics retain the last active setting after close without inp
   assert.equal(support.snapshot().dsTouchMode, 'Touch');
   assert.doesNotMatch(JSON.stringify(support.snapshot()), /clientX|clientY|touch_x|touch_y/);
 });
+
+test('Azahar captures native factory output before initialization, preserves callbacks and records startup results', async () => {
+  const env = await environment(playerSource);
+  const output = [], mainArgs = [];
+  const canvas = env.document.createElement('canvas');
+  canvas.width = 800; canvas.height = 480; canvas.clientWidth = 400; canvas.clientHeight = 240;
+  const context = {}; const getContext = type => type === 'webgl2' ? context : null;
+  canvas.getContext = getContext;
+  const callMain = args => { mainArgs.push([...args]); return 1; };
+  const module = { callMain };
+  let configured;
+  const factory = options => { configured = options; options.print('core init'); return Promise.resolve(module); };
+  const originalPrint = value => { output.push(value); return 'forwarded'; };
+  const emulator = { ejs_version: '4.3.0-pre', getCore: () => 'azahar', canvas, started: false,
+    initModule() { return env.window.EJS_Runtime({ print: originalPrint, printErr: originalPrint }); } };
+  const originalInit = emulator.initModule;
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  support.attach(emulator);
+  // The script defines the global factory after EJS_ready, immediately before initModule.
+  env.window.EJS_Runtime = factory;
+  assert.equal(await emulator.initModule(), module);
+  assert.equal(configured.printErr('[ERROR] Failed to load content'), 'forwarded');
+  assert.equal(canvas.getContext('webgl2'), context);
+  const args = ['/game.3ds']; assert.equal(module.callMain(args), 1);
+  assert.deepEqual(args, ['/game.3ds']); assert.deepEqual(mainArgs[0], ['-v', '/game.3ds']);
+  const snapshot = support.nativeSnapshot();
+  assert.equal(snapshot.startup.mainReturnCode, 1);
+  assert.equal(snapshot.startup.graphics[0].created, true);
+  assert.equal(snapshot.startup.canvas.width, 800);
+  assert.match(snapshot.issues[0].detail, /Failed to load content/);
+  assert.deepEqual(output, ['core init', '[ERROR] Failed to load content']);
+  support.stop();
+  assert.equal(emulator.initModule, originalInit); assert.equal(module.callMain, callMain);
+  assert.equal(env.window.EJS_Runtime, factory); assert.equal(canvas.getContext, getContext);
+  const length = support.coreLog.length;
+  configured.print('after close'); assert.equal(support.coreLog.length, length);
+  canvas.width = 1; assert.equal(support.nativeSnapshot().startup.canvas.width, 800);
+});
+
+test('native logs are bounded, redact URL secrets, retain issues and leave other backends unchanged', async () => {
+  const env = await environment(playerSource);
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  support.attach({ ejs_version: '4.3.0-pre', getCore: () => 'azahar' });
+  support.coreOutput('printErr', ['[ERROR] Invalid file https://user:pass@example.test/game?secret=value#private']);
+  for (let index = 0; index < 100; index++) support.coreOutput('print', [index + 'x'.repeat(1000)]);
+  const result = support.nativeSnapshot(), raw = JSON.stringify(result);
+  assert.equal(result.log.length, 20); assert.equal(result.issues.length, 1);
+  assert.ok(result.log.every(item => item.detail.length <= 500));
+  assert.doesNotMatch(raw, /user:pass|secret=value|#private/);
+  assert.match(result.issues[0].detail, /https:\/\/example.test\/game/);
+  assert.ok(raw.length < 16000);
+  support.stop();
+  for (const [core, version] of [['melonds', '4.3.0-pre'], ['azahar', '4.2.3']]) {
+    const other = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+    const initModule = () => {};
+    const emulator = { getCore: () => core, ejs_version: version, initModule };
+    other.attach(emulator); assert.equal(emulator.initModule, initModule);
+    assert.equal(other.nativeSnapshot(), null); other.stop();
+  }
+});

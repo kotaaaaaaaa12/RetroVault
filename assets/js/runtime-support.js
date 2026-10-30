@@ -13,6 +13,8 @@
       this.failures = [];
       this.input = { pointerEvents: 0, touchEvents: 0, keyEvents: 0, virtualControlEvents: 0, coreInputCalls: 0, canvasPointerEvents: 0, canvasTouchEvents: 0 };
       this.audioCheck = "native";
+      this.coreLog = [];
+      this.coreIssues = [];
       for (const name of ["getGamepads", "webkitGetGamepads"]) this.trace(window.navigator, name, "navigator." + name);
       this.trace(window.navigator?.mediaDevices, "getUserMedia", "mediaDevices.getUserMedia");
       const input = event => {
@@ -84,11 +86,106 @@
       });
     }
     trackContext(context) { this.trace(context, "resume", "AudioContext.resume"); }
+    coreOutput(source, args) {
+      if (this.stopped) return;
+      const detail = args.filter(value => typeof value === 'string' || typeof value === 'number')
+        .slice(0, 3).map(value => String(value).slice(0, 500)).join(' ')
+        .replace(/\x1b\[[0-9;]*m/g, '')
+        .replace(/https?:\/\/[^\s"'<>]+/g, value => {
+          try { const url = new URL(value); return url.origin + url.pathname; } catch { return '[url]'; }
+        }).slice(0, 500);
+      if (!detail) return;
+      const last = this.coreLog.at(-1);
+      if (last?.source === source && last.detail === detail) last.count = Math.min(1000000, last.count + 1);
+      else {
+        const item = { source, detail, count: 1 };
+        this.coreLog = [...this.coreLog, item].slice(-20);
+        if (/\[(?:ERROR|FATAL|CRITICAL)\]|<(?:Error|Critical)>|SET_MESSAGE:.*(?:failed|error|encrypted|unsupported|invalid)|^\s*(?:failed|error|fatal|unsupported|invalid|aborted)\b/i.test(detail)) {
+          // Keep the first failures even if secondary shutdown/configuration
+          // errors follow the original cause.
+          this.coreIssues = this.coreIssues.length < 6 ? [...this.coreIssues, item]
+            : [...this.coreIssues.slice(0, 3), ...this.coreIssues.slice(-2), item];
+        }
+      }
+      // Native output can be frequent. Persist at most once per second;
+      // errors remain in a separate bounded list when later output rolls over.
+      if (!this.coreLogTimer) this.coreLogTimer = setTimeout(() => {
+        this.coreLogTimer = null; if (!this.stopped) this.onChange?.();
+      }, 1000);
+    }
+    attachCoreModule(module) {
+      if (!module || this.stopped) return;
+      this.coreModule = module;
+      this.replace(module, 'callMain', original => {
+        const support = this;
+        return function(args = [], ...rest) {
+          support.coreStartup.mainInvoked = true;
+          const options = Array.isArray(args) ? [...args] : args;
+          if (Array.isArray(options) && !options.includes('-v')) options.unshift('-v');
+          try {
+            const result = Reflect.apply(original, this, [options, ...rest]);
+            support.coreStartup.mainReturned = true;
+            if (Number.isFinite(result)) support.coreStartup.mainReturnCode = result;
+            support.onChange?.();
+            return result;
+          } catch (error) {
+            support.coreOutput('callMain', [error?.message || String(error)]);
+            throw error;
+          }
+        };
+      });
+    }
+    traceCore(emulator) {
+      if (this.coreStartup) return;
+      this.coreStartup = { mainInvoked: false, mainReturned: false, graphics: [] };
+      this.replace(emulator.canvas, 'getContext', original => {
+        const support = this;
+        return function(type, ...args) {
+          const result = Reflect.apply(original, this, [type, ...args]);
+          if (['webgl', 'webgl2', 'experimental-webgl'].includes(type)) {
+            support.coreStartup.graphics = [...support.coreStartup.graphics, { type, created: !!result }].slice(-4);
+          }
+          return result;
+        };
+      });
+      this.replace(emulator, 'initModule', original => {
+        const support = this;
+        return function(...args) {
+          // The core factory reads print/printErr once during initialization.
+          // Hook its options before the native frontend invokes it; replacing
+          // Module.print afterward would miss Emscripten's captured callbacks.
+          support.replace(window, 'EJS_Runtime', factory => function(options = {}, ...rest) {
+            const configured = { ...options };
+            for (const name of ['print', 'printErr']) {
+              const callback = options[name];
+              configured[name] = function(...output) {
+                support.coreOutput(name, output);
+                if (typeof callback === 'function') return Reflect.apply(callback, this, output);
+              };
+            }
+            return Promise.resolve(Reflect.apply(factory, this, [configured, ...rest])).then(module => {
+              support.attachCoreModule(module); return module;
+            });
+          });
+          return Reflect.apply(original, this, args);
+        };
+      });
+    }
+    nativeSnapshot() {
+      if (!this.coreStartup) return null;
+      if (!this.stopped) {
+        const canvas = this.emulator?.canvas;
+        if (canvas) this.coreStartup.canvas = { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight };
+        this.coreStartup.frontendStarted = this.emulator?.started === true;
+      }
+      return { startup: this.coreStartup, log: this.coreLog, issues: this.coreIssues };
+    }
     attach(emulator) {
       if (!emulator || this.stopped) return;
       this.emulator = emulator;
       const host = emulator.elements?.parent;
       const core = emulator.getCore?.();
+      if (emulator.ejs_version === '4.3.0-pre' && core === 'azahar') this.traceCore(emulator);
       if (emulator.ejs_version === '4.3.0-pre' && ['nds', 'melonds', 'desmume', 'desmume2015'].includes(core) && host?.classList && !this.dsTouchHost) {
         const alreadyEnabled = host.classList.contains('rv-ds-touch');
         host.classList.add('rv-ds-touch');
@@ -132,7 +229,9 @@
     stop() {
       if (this.stopped) return;
       this.snapshot();
+      this.nativeSnapshot();
       this.stopped = true;
+      clearTimeout(this.coreLogTimer);
       for (const restore of this.restorers.reverse()) { try { restore(); } catch {} }
       this.restorers = [];
       this.emulator = null;
