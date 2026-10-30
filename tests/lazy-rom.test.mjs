@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
+import { createHash, webcrypto } from 'node:crypto';
 const source = await readFile(new URL('../assets/js/lazy-rom.js', import.meta.url), 'utf8');
 class Worker {
   postMessage(message) {
@@ -14,6 +15,76 @@ class Worker {
 }
 const window={};
 vm.runInNewContext(source,{window,Worker,SharedArrayBuffer,Atomics,performance,setTimeout,clearTimeout});
+
+function hashEnvironment(crypto = webcrypto, WorkerClass = Worker) {
+  const window = {};
+  vm.runInNewContext(source, { window, crypto, Worker: WorkerClass, SharedArrayBuffer, Atomics, performance, setTimeout, clearTimeout });
+  return window.RetroLazyRom;
+}
+function exheaderFixture(ncsd = false) {
+  const bytes = new Uint8Array(262144), offset = ncsd ? 0x4000 : 0;
+  const view = new DataView(bytes.buffer);
+  if (ncsd) {
+    bytes.set(Buffer.from('NCSD'), 0x100);
+    view.setUint32(0x120, offset / 512, true); view.setUint32(0x124, 1024, true);
+  }
+  bytes.set(Buffer.from('NCCH'), offset + 0x100);
+  view.setUint32(offset + 0x180, 0x400, true);
+  for (let i = 0; i < 0x400; i++) bytes[offset + 0x200 + i] = (i * 13 + 7) % 256;
+  bytes.set(createHash('sha256').update(bytes.subarray(offset + 0x200, offset + 0x600)).digest(), offset + 0x160);
+  return { bytes, offset, view };
+}
+test('exheader hash checks plaintext independently of the crypto flag without modifying or exporting content', async () => {
+  const api = hashEnvironment();
+  for (const ncsd of [false, true]) {
+    const { bytes, offset } = exheaderFixture(ncsd), original = bytes.slice();
+    const header = api.inspectHeader(bytes, 1048576);
+    assert.equal(header.noCryptoFlag, false);
+    const result = await api.inspectExheaderHash(bytes, 1048576, header);
+    assert.equal(result.state, 'match'); assert.equal(result.bytesHashed, 1024);
+    assert.equal(result.scope, 'NCCH exheader only');
+    assert.deepEqual(Object.keys(result).sort(), ['algorithm', 'bytesHashed', 'scope', 'state']);
+    assert.deepEqual(bytes, original);
+    bytes[offset + 0x200] ^= 1;
+    assert.equal((await api.inspectExheaderHash(bytes, 1048576, header)).state, 'mismatch');
+    bytes[offset + 0x18f] = 4;
+    assert.equal((await api.inspectExheaderHash(bytes, 1048576, api.inspectHeader(bytes, 1048576))).state, 'mismatch');
+  }
+});
+test('exheader inspection bounds input and reports missing, unsupported and unavailable checks without guessing', async () => {
+  const api = hashEnvironment(); const { bytes, offset, view } = exheaderFixture(true);
+  const header = api.inspectHeader(bytes, 1048576);
+  const check = (input = bytes, size = 1048576, h = header) => api.inspectExheaderHash(input, size, h);
+  assert.equal((await check(bytes, 1048576, { state: 'unrecognized' })).state, 'header-unavailable');
+  assert.equal((await check(bytes.subarray(0, offset + 0x300))).state, 'outside-probe');
+  assert.equal((await check(bytes, offset + 0x500)).state, 'invalid-bounds');
+  assert.equal((await check(bytes, 1048576, { ...header, partitionSize: 0x400 })).state, 'invalid-bounds');
+  view.setUint32(offset + 0x180, 0, true); assert.equal((await check()).state, 'no-exheader');
+  view.setUint32(offset + 0x180, 0xffffffff, true); assert.equal((await check()).state, 'unsupported-size');
+  view.setUint32(offset + 0x180, 0x400, true);
+  assert.equal((await hashEnvironment(null).inspectExheaderHash(bytes, 1048576, header)).state, 'unavailable');
+  assert.equal((await hashEnvironment({ subtle: { digest() { throw new Error('Denied'); } } }).inspectExheaderHash(bytes, 1048576, header)).state, 'unavailable');
+  bytes.fill(0, offset + 0x160, offset + 0x180); assert.equal((await check()).state, 'missing-digest');
+});
+test('the remote mount retains hash results after close and needs only the existing probe', async () => {
+  const { bytes } = exheaderFixture(true); let reads = 0;
+  class ProbeWorker extends Worker {
+    postMessage(message) {
+      reads++;
+      assert.equal(message.type, 'init');
+      new Uint8Array(message.shared, 8).set(bytes);
+      queueMicrotask(() => this.onmessage({ data: { ready: true, size: 1048576, firstLength: bytes.length } }));
+    }
+  }
+  const reader = new (hashEnvironment(webcrypto, ProbeWorker).LazyRom)({ url: '/data/roms/test.3ds', name: 'test.3ds' });
+  try {
+    await reader.ready;
+    assert.equal(reader.stats.header.exheaderHash.state, 'match');
+    assert.equal(reader.stats.bytesRead, 262144); assert.equal(reads, 1);
+  } finally { reader.stop(); }
+  assert.equal(reader.stats.header.exheaderHash.state, 'match');
+  assert.equal(reader.stats.cacheBytes, 0);
+});
 
 test('header metadata reports raw NCCH flags without claiming payload decryption or modifying bytes', () => {
   const bytes = new Uint8Array(0x200);

@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.3">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.13.3">
-  <script src="/assets/js/i18n.js?v=2.13.3" defer></script>
-  <script src="/assets/js/changelog.js?v=2.13.3" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.13.4">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.13.4">
+  <script src="/assets/js/i18n.js?v=2.13.4" defer></script>
+  <script src="/assets/js/changelog.js?v=2.13.4" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-exheader-hash">
+      <div class="release-meta"><span>2.13.4</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-exheader-hash" data-i18n="releaseExheaderTitle">Check the 3DS extended-header hash</h2>
+      <ul><li data-i18n="releaseExheaderDetails">Library ROM diagnostics compare the standard NCCH extended header with its stored SHA-256 digest using the existing range probe. Logs distinguish matches, mismatches, and checks that could not run. This checks only the extended header, not the entire ROM. Files and encryption flags are not changed.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-rom-header">
-      <div class="release-meta"><span>2.13.3</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.13.3</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-rom-header" data-i18n="releaseHeaderTitle">Record the 3DS ROM header flags</h2>
       <ul><li data-i18n="releaseHeaderDetails">Library ROM diagnostics now record the loaded filename, NCSD/NCCH header metadata, the no-crypto flag, and the corresponding flag bytes delivered to the core. Inspection reuses the existing range probe without extra downloads or modifying the file. A header flag or loader classification alone does not independently verify payload decryption.</li></ul>
     </article>

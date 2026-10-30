@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.13.3**. Site releases use
+The current Retro Vault release is **2.13.4**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -548,3 +548,27 @@ No raw header block, key, signature or payload bytes are exported. Local-only
 ROM diagnostics retain their prior behavior; this probe inspection applies
 to the library range path. The uploaded diagnostic log and original ROM are
 not changed.
+
+## Check the extended-header digest (2.13.4)
+
+The library range probe now also compares the standard 0x400-byte NCCH
+extended header at NCCH+0x200 with the SHA-256 digest at NCCH+0x160.
+The declared length at NCCH+0x180 must be exactly 0x400. The inspection checks
+object and partition bounds and uses only bytes already in the first probe.
+It performs no extra network request and never changes the ROM or its flags.
+
+Diagnostics retain `romIO.header.exheaderHash` after closing the player.
+`state` is `match`, `mismatch`, or a specific reason the check could not run
+(missing/unsupported header, invalid bounds, outside the probe, missing
+digest, or unavailable Web Crypto). A failed diagnostic does not prevent
+mounting. Only the algorithm, scope, result, and byte count are exported;
+no raw bytes or digest values are included.
+
+A match verifies only that the observed extended-header bytes agree with
+the stored digest. It does not validate ExeFS, RomFS, the whole ROM, its
+provenance, or game compatibility. A mismatch does not by itself distinguish
+encryption, corruption, modification, or an incorrect stored digest. Neither
+result triggers decryption or automatic flag normalization.
+
+The SHA-256 comparison follows the exheader verification used by
+[Project_CTR makerom](https://github.com/3DSGuy/Project_CTR/blob/master/makerom/src/ncch.c).

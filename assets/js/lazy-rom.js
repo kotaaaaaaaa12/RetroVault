@@ -24,6 +24,30 @@
     const flagsOffset = offset + 0x18f;
     return { ...result, state: 'observed', flagsOffset, flagsByte: bytes[flagsOffset], noCryptoFlag: !!(bytes[flagsOffset] & 4) };
   }
+  async function inspectExheaderHash(bytes, size, header) {
+    // This checks only the standard 0x400-byte exheader against its stored
+    // digest. A match does not validate ExeFS, RomFS, or the complete ROM.
+    const result = { algorithm: 'SHA-256', scope: 'NCCH exheader only' };
+    if (header?.state !== 'observed') return { ...result, state: 'header-unavailable' };
+    const offset = header.ncchOffset;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const length = view.getUint32(offset + 0x180, true);
+    if (!length) return { ...result, state: 'no-exheader' };
+    if (length !== 0x400) return { ...result, state: 'unsupported-size', declaredSize: length };
+    const start = offset + 0x200, end = start + length;
+    if (end > size || (header.format === 'NCSD' && end > offset + header.partitionSize)) return { ...result, state: 'invalid-bounds' };
+    if (end > bytes.length) return { ...result, state: 'outside-probe' };
+    const expected = bytes.subarray(offset + 0x160, offset + 0x180);
+    if (expected.every(byte => byte === 0)) return { ...result, state: 'missing-digest' };
+    try {
+      if (!globalThis.crypto?.subtle?.digest) return { ...result, state: 'unavailable' };
+      const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes.subarray(start, end)));
+      return { ...result, state: digest.every((byte, index) => byte === expected[index]) ? 'match' : 'mismatch', bytesHashed: length };
+    } catch {
+      // Diagnostic failure must not block mounting or change core behavior.
+      return { ...result, state: 'unavailable' };
+    }
+  }
   class LazyRom {
     constructor(file, changed = () => {}) {
       this.remote = typeof file.url === 'string';
@@ -33,11 +57,11 @@
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.3');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.4');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
         this.initTimeout = setTimeout(() => { this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
-        this.worker.onmessage = event => {
+        this.worker.onmessage = async event => {
           clearTimeout(this.initTimeout);
           if (this.stopped) return;
           if (!event.data.ready) return reject(new Error('lazyRomUnavailable'));
@@ -48,6 +72,8 @@
             const first = this.bytes.slice(0, firstLength);
             this.cache.set(0, first);
             this.stats.header = inspectHeader(first, size);
+            this.stats.header.exheaderHash = await inspectExheaderHash(first, size, this.stats.header);
+            if (this.stopped) return;
             this.stats.cacheBytes = firstLength; this.stats.bytesRead = firstLength; this.stats.largestRead = firstLength;
           }
           this.stats.state = 'ready'; this.changed(this.stats); resolve();
@@ -155,5 +181,5 @@
     emulator.download = wrapped;
     return { stats: reader.stats, stop() { reader.stop(); if (emulator.download === wrapped) emulator.download = original; } };
   }
-  window.RetroLazyRom = { LazyRom, install, inspectHeader };
+  window.RetroLazyRom = { LazyRom, install, inspectHeader, inspectExheaderHash };
 })();
