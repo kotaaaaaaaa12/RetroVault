@@ -437,10 +437,9 @@ element('logout').addEventListener('click', async () => {
   if (dirty && !await ask('adminDiscardChanges')) return;
   try { await api('/api/auth/logout', 'POST', {}); dirty = false; location.assign('/admin/login'); } catch (error) { problem(error); }
 });
-const language = element('language-select'); language.value = i18n.mode;
-language.addEventListener('change', () => { i18n.setLanguage(language.value); language.blur(); });
+const language = element('language-select'); i18n.bindLanguageSelect(language);
 i18n.onChange(() => {
-  language.value = i18n.mode; systemOptions(); renderGames(); renderFiles(); fileChoices();
+  systemOptions(); renderGames(); renderFiles(); fileChoices();
   renderUploadResults();
   element('editor-heading').textContent = t(model.id ? 'adminEdit' : 'adminAdd');
   element('game-identity').textContent = model.id ? t('adminIdentity', { id: model.id, revision: model.revision }) : t('adminNewIdentity');

@@ -91,6 +91,10 @@
     "siteLinks": "Site links",
     "backToGames": "Back to games",
     "latestRelease": "Latest",
+    "releaseLanguageFocusTitle": "Release language selector focus",
+    "releaseLanguageFocusDetails": "All language selectors now share focus cleanup after a selection, including the changelog and core comparison pages. Native picker dismissal is checked again without moving focus away from another control.",
+    "releaseDsAbsoluteTitle": "DS touch uses the displayed position",
+    "releaseDsAbsoluteDetails": "The pinned melonDS runtime now defaults to Touch mode for direct finger taps and mouse clicks. Existing Mouse preferences migrate once; later manual choices are respected. Save data, controls, and cheats are retained. Diagnostics include the selected touch mode. Safari game-level verification is still required.",
     "releaseDsTouchTitle": "DS screen touch routing",
     "releaseDsTouchDetails": "Restored DS canvas hit testing on the pinned frontend while allowing touches through empty virtual-gamepad areas. Actual buttons and the D-pad remain interactive. Diagnostics count canvas touch/pointer events without recording coordinates. Safari game-level stylus behavior still requires device verification.",
     "releaseSharedSavesTitle": "One set of nine save slots",
@@ -457,6 +461,10 @@
     "siteLinks": "サイト内リンク",
     "backToGames": "ゲーム一覧に戻る",
     "latestRelease": "最新",
+    "releaseLanguageFocusTitle": "言語選択後のフォーカスを解除",
+    "releaseLanguageFocusDetails": "更新履歴やコア比較を含む全ページで、言語選択後のフォーカス解除処理を統一しました。端末の選択画面を閉じた後も再確認し、別の入力欄へ移った場合はそのフォーカスを維持します。",
+    "releaseDsAbsoluteTitle": "DSのタッチ位置を直接指定する方式に変更",
+    "releaseDsAbsoluteDetails": "固定版melonDSの標準をTouchに変更し、指やマウスで押した画面位置を使うようにしました。以前のMouse設定は一度だけ移行し、その後の手動変更は維持します。セーブ・ボタン設定・チートは保持します。診断ログに選択中のタッチ方式を追加しました。Safari実機のゲーム内動作は確認が必要です。",
     "releaseDsTouchTitle": "DS画面へのタッチ入力を修正",
     "releaseDsTouchDetails": "固定版EmulatorJSで無効化されていたDS画面へのタップを有効にし、仮想パッドの透明な部分が画面を遮らないようにしました。操作ボタンと十字キーは引き続き使えます。診断ログには画面へ届いたタッチ・ポインターの回数を記録し、座標は保存しません。Safari実機でのゲーム内タッチ動作は確認が必要です。",
     "releaseSharedSavesTitle": "共通の9スロットへ統一",
@@ -1190,6 +1198,11 @@
   "Sequential Targets light gun": "Sequential Targets light gun",
   "Touchscreen": "Touchscreen",
   "Mouse": "Mouse",
+  "Touch Mode": "Touch Mode",
+  "melonds_touch_mode": "Touch Mode",
+  "melonds touch mode": "Touch Mode",
+  "Touch": "Touch",
+  "Joystick": "Joystick",
   "Show Zapper Crosshair": "Show Zapper Crosshair",
   "Zapper Tolerance": "Zapper Tolerance",
   "Invert Zapper Trigger Signal": "Invert Zapper Trigger Signal",
@@ -1977,6 +1990,11 @@
   "Sequential Targets light gun": "対象を順番に指定",
   "Touchscreen": "タッチ操作",
   "Mouse": "マウス",
+  "Touch Mode": "タッチ操作方式",
+  "melonds_touch_mode": "タッチ操作方式",
+  "melonds touch mode": "タッチ操作方式",
+  "Touch": "直接タッチ",
+  "Joystick": "スティック",
   "Show Zapper Crosshair": "光線銃の照準を表示",
   "Zapper Tolerance": "光線銃の判定範囲",
   "Invert Zapper Trigger Signal": "光線銃の引き金を反転",
@@ -2432,8 +2450,23 @@
     return language === "en" ? text || t("unexpectedError") : t("unexpectedError");
   }
 
+  function bindLanguageSelect(select) {
+    if (!select) return;
+    select.value = mode;
+    listeners.add(() => { select.value = mode; });
+    select.addEventListener('change', () => {
+      try { setLanguage(select.value); }
+      finally {
+        select.blur();
+        // Native pickers can restore focus as they dismiss. Check again after
+        // the event, without taking focus from another control.
+        setTimeout(() => { if (document.activeElement === select) select.blur(); }, 0);
+      }
+    });
+  }
+
   window.RetroI18n = Object.freeze({
-    t, apply, setLanguage, errorText, translateEmulatorText,
+    t, apply, setLanguage, bindLanguageSelect, errorText, translateEmulatorText,
     get language() { return language; },
     get mode() { return mode; },
     onChange(callback) { listeners.add(callback); return () => listeners.delete(callback); },

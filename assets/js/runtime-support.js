@@ -117,6 +117,13 @@
     snapshot() {
       const result = { ...this.input, audioCheck: this.audioCheck };
       if (this.dsTouchHost) result.dsTouchRouting = "canvas-and-controls";
+      try {
+        if (['nds', 'melonds'].includes(this.emulator?.getCore?.())) {
+          const mode = this.emulator.getSettingValue?.('melonds_touch_mode') || this.emulator.settings?.melonds_touch_mode;
+          if (['Mouse', 'Touch', 'Joystick', 'disabled'].includes(mode)) this.dsTouchMode = mode;
+        }
+      } catch {}
+      if (this.dsTouchMode) result.dsTouchMode = this.dsTouchMode;
       const device = this.emulator?.settings?.['controller-port-device-p1'];
       if (/^\d{1,8}$/.test(String(device))) result.controllerPort1 = Number(device);
       try { if (typeof this.emulator?.isPopupOpen === "function") result.nativePopupOpen = this.emulator.isPopupOpen() === true; } catch {}
@@ -124,6 +131,7 @@
     }
     stop() {
       if (this.stopped) return;
+      this.snapshot();
       this.stopped = true;
       for (const restore of this.restorers.reverse()) { try { restore(); } catch {} }
       this.restorers = [];

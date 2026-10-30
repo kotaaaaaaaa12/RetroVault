@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.12.1**. Site releases use
+The current Retro Vault release is **2.12.3**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -402,3 +402,27 @@ Other systems and explicitly older runtimes retain their existing behavior.
 The class is removed during shutdown. Diagnostics record only canvas event
 counts and routing mode, without coordinates or input contents. Game-level
 stylus behavior on the reporting Safari device is not yet verified.
+
+
+## DS direct touch mode (2.12.2)
+
+For the pinned 4.3.0-pre melonDS backend, the player sets
+`melonds_touch_mode = "Touch"` through EmulatorJS native default options. The
+core's Mouse mode accumulates relative deltas and renders a movable cursor;
+its Touch mode uses absolute pointer coordinates and the current screen layout.
+Touch supports both mouse clicks and finger input through the native driver.
+No coordinate injection or fixed pixel offset is added.
+
+Existing per-game Mouse preferences migrate to Touch once. Explicit Joystick
+and disabled preferences remain intact; subsequent manual mode changes are
+respected. Save names, states, game saves, control bindings and cheats do not
+change. Non-melonDS overrides and explicitly older runtimes are unchanged.
+Diagnostics retain the last selected mode after closing the game and record
+no pointer coordinates. This addresses the relative cursor behavior; the
+reporting Safari device still needs game-level testing. Upstream also tracks
+mobile Touch input failures separately in EmulatorJS issue #1262.
+
+Source behavior was checked against the EmulatorJS melonDS fork at
+`18a057d372783b42d7e297b8731f3c3d673cdcab`, `src/libretro/input.cpp` and
+`src/libretro/libretro_core_options.h`. This source check does not establish
+that every deployed core binary was built from that commit.

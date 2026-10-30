@@ -836,20 +836,14 @@ window.addEventListener("message", event => {
   }
 });
 
-elements.language.value = I18n.mode;
+I18n.bindLanguageSelect(elements.language);
 elements.saves.addEventListener("click", () => {
   if (state.closing || state.openGameId === null) return;
   elements.saves.blur();
   elements.frame.contentWindow.postMessage({ type: "retro-vault-open-saves" }, window.location.origin);
 });
-elements.language.addEventListener("change", event => {
-  I18n.setLanguage(event.target.value);
-  event.target.blur();
-});
-
 I18n.onChange(() => {
   if (state.closing) elements.close.textContent = t("closing");
-  elements.language.value = I18n.mode;
   buildFilterButtons();
   renderGrid();
   renderNotice();

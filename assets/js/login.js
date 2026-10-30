@@ -1,8 +1,6 @@
 const i18n = window.RetroI18n;
 const language = document.getElementById('language-select');
-language.value = i18n.mode;
-language.addEventListener('change', () => { i18n.setLanguage(language.value); language.blur(); });
-i18n.onChange(() => { language.value = i18n.mode; });
+i18n.bindLanguageSelect(language);
 document.getElementById('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   const button = event.target.querySelector('button');

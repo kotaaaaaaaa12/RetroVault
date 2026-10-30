@@ -23,7 +23,7 @@
   try { previous = JSON.parse(sessionStorage.getItem(key) || "null"); } catch {}
   if (previous?.mode !== "standalone-core-test") previous = null;
   download.hidden = !previous;
-  language.value = i18n.mode;
+  i18n.bindLanguageSelect(language);
 
   function show(next, parameters = {}) {
     message = next;
@@ -31,9 +31,7 @@
     status.textContent = i18n.t(message, values);
   }
 
-  language.addEventListener("change", () => i18n.setLanguage(language.value));
   i18n.onChange(() => {
-    language.value = i18n.mode;
     for (const option of select.children) if (games[Number(option.value)]) option.textContent = i18n.gameTitle(games[Number(option.value)]);
     show(message, values);
   });
@@ -115,7 +113,7 @@
     version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "2.12.1",
+      appVersion: "2.12.3",
       mode: "standalone-core-test",
       emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },

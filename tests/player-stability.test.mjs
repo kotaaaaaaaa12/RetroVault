@@ -1338,3 +1338,49 @@ test('DS routing leaves other systems and explicit older runtimes unchanged', as
     assert.equal(host.classList.contains('rv-ds-touch'), false); support.stop();
   }
 });
+
+test('DS startup migrates relative Mouse mode once without touching saves, controls or cheats', async () => {
+  const game = { id: 9, title: 'Pearl', saveName: 'Stable save identity', core: 'nds', rom: 'Pearl.nds' };
+  const key = 'ejs-9-nds-Stable save identity-settings';
+  const original = { settings: { melonds_touch_mode: 'Mouse', volume: '0.5' }, controlSettings: { 0: { 8: 'KeyX' } }, cheats: [{ code: 'test' }] };
+  const env = await environment(playerSource, { games: [game], search: '?id=9', localStorage: { [key]: JSON.stringify(original), 'unrelated-save': 'preserve' } });
+  assert.equal(env.window.EJS_defaultOptions.melonds_touch_mode, 'Touch');
+  const saved = JSON.parse(env.window.localStorage.getItem(key));
+  assert.equal(saved.settings.melonds_touch_mode, 'Touch');
+  assert.deepEqual(saved.controlSettings, original.controlSettings);
+  assert.deepEqual(saved.cheats, original.cheats);
+  assert.equal(saved.settings.volume, '0.5');
+  assert.equal(env.window.localStorage.getItem('unrelated-save'), 'preserve');
+  // A deliberate later selection must survive the next startup.
+  saved.settings.melonds_touch_mode = 'Mouse';
+  env.window.localStorage.setItem(key, JSON.stringify(saved));
+  vm.runInContext('configureDsTouchMode({id:9,title:"Pearl",saveName:"Stable save identity",core:"nds"},"nds","4.3.0-pre")', env.context);
+  assert.equal(JSON.parse(env.window.localStorage.getItem(key)).settings.melonds_touch_mode, 'Mouse');
+});
+
+test('DS absolute touch defaults support fresh games and preserve explicit alternative controls', async () => {
+  for (const mode of [undefined, 'Touch', 'Joystick', 'disabled']) {
+    const game = { id: 9, title: 'Pearl', core: 'nds', rom: 'Pearl.nds' };
+    const key = 'ejs-9-nds-Pearl-settings';
+    const seed = mode === undefined ? {} : { [key]: JSON.stringify({ settings: { melonds_touch_mode: mode } }) };
+    const env = await environment(playerSource, { games: [game], search: '?id=9', localStorage: seed });
+    assert.equal(env.window.EJS_defaultOptions.melonds_touch_mode, 'Touch');
+    if (mode !== undefined) assert.equal(JSON.parse(env.window.localStorage.getItem(key)).settings.melonds_touch_mode, mode);
+  }
+  for (const options of [{ core: 'nes' }, { core: 'nds', coreOverride: 'desmume' }, { core: 'nds', ejsVersion: '4.2.3' }]) {
+    const env = await environment(playerSource, { games: [{ id: 1, title: 'Test Game', rom: 'test.rom', ...options }] });
+    assert.equal(env.window.EJS_defaultOptions.melonds_touch_mode, undefined);
+  }
+});
+
+test('DS mode diagnostics retain the last active setting after close without input coordinates', async () => {
+  const env = await environment(playerSource);
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  const emulator = { ejs_version: '4.3.0-pre', getCore: () => 'melonds', settings: { melonds_touch_mode: 'Mouse' } };
+  support.attach(emulator);
+  assert.equal(support.snapshot().dsTouchMode, 'Mouse');
+  emulator.settings.melonds_touch_mode = 'Touch';
+  support.stop();
+  assert.equal(support.snapshot().dsTouchMode, 'Touch');
+  assert.doesNotMatch(JSON.stringify(support.snapshot()), /clientX|clientY|touch_x|touch_y/);
+});

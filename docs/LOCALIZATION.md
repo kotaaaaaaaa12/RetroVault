@@ -12,6 +12,18 @@ selects its corresponding nonempty title, then the other title, then the legacy
 the immutable `saveName` used by native browser saves or the game ID used by slots.
 Legacy titles are loaded into the primary title field when edited.
 
+When either localized field is supplied, the server generates `title` from
+nonempty `titleEn`, then `titleJa`. A localized import therefore does not need
+an independently maintained `title`. The generated field remains available to
+legacy consumers, validation, diagnostics, and save metadata. A record with
+only `title` is still accepted as a legacy input. Editing the generated field
+alone does not override localized display titles.
+
+Every page uses the shared `bindLanguageSelect` handler. Committing a language
+selection releases focus immediately and checks again in the next task, after
+native picker dismissal. The deferred check does not steal focus from another
+control. Language updates from another tab or the browser do not move focus.
+
 EmulatorJS native translations are based on these v4.2.3 and v4.3.0-pre source files:
 
 - https://github.com/EmulatorJS/EmulatorJS/blob/v4.2.3/data/localization/en-US.json

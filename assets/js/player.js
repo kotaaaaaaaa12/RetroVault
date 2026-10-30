@@ -210,7 +210,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.12.1",
+    appVersion: "2.12.3",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -290,6 +290,36 @@ function clearSavedThreadOverride(game) {
     storage.setItem(migrationKey, "1");
   } catch (error) {
     console.debug("Saved preference migration was unavailable:", error);
+  }
+}
+
+function configureDsTouchMode(game, core, loaderVersion) {
+  if (loaderVersion !== '4.3.0-pre' || !['nds', 'melonds'].includes(core)) return;
+  // Mouse mode integrates relative movement; Touch uses the displayed position
+  // for both mouse clicks and finger input, including the core's screen layout.
+  window.EJS_defaultOptions.melonds_touch_mode = 'Touch';
+  try {
+    const storage = window.localStorage;
+    const saveName = game.saveName || game.title;
+    const migrationKey = 'retro-vault-ds-touch-mode:' + JSON.stringify([game.id, game.core, saveName]);
+    if (storage.getItem(migrationKey) === '1') return;
+    for (const system of ['nds', 'melonds']) {
+      const key = `ejs-${game.id}-${system}-${saveName}-settings`;
+      const raw = storage.getItem(key);
+      if (!raw) continue;
+      let saved;
+      try { saved = JSON.parse(raw); } catch { continue; }
+      if (!saved?.settings || typeof saved.settings !== 'object' || Array.isArray(saved.settings)) continue;
+      const mode = saved.settings.melonds_touch_mode;
+      if (mode == null || mode === 'Mouse') {
+        saved.settings.melonds_touch_mode = 'Touch';
+        storage.setItem(key, JSON.stringify(saved));
+      }
+    }
+    // Subsequent explicit choices in the native settings remain user-controlled.
+    storage.setItem(migrationKey, '1');
+  } catch (error) {
+    console.debug('Saved DS touch preference migration was unavailable:', error);
   }
 }
 
@@ -465,6 +495,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   configureOptionalOptions(game);
   clearSavedThreadOverride(game);
+  configureDsTouchMode(game, core, loaderVersion);
   beginDiagnostics(game, threads, loaderVersion);
   if (typeof window.RetroResourceDiagnostics === "function") {
     resourceDiagnostics = new window.RetroResourceDiagnostics({
