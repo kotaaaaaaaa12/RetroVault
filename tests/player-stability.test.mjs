@@ -216,6 +216,37 @@ test('3DS comparison retains interrupted runs, validates frame messages and wait
   assert.equal(store.getItem('normal-save'), 'preserve');
 });
 
+test('Safari pinned 3DS cache default migrates only its saved preference once and preserves explicit later choices', async () => {
+  const safari = 'Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/26.5 Safari/605.1.15';
+  const game = { id: 1, title: '3DS title', saveName: 'Fixed save', core: '3ds', rom: 'test.3ds' };
+  const saved = { settings: { citra_use_hw_shader_cache: 'enabled', citra_use_hw_shaders: 'enabled', citra_resolution_factor: '1' }, controlSettings: { custom: true }, cheats: ['preserve'] };
+  const store = storage({ 'ejs-1-3ds-Fixed save-settings': JSON.stringify(saved), 'save-data': 'untouched',
+    'ejs-2-3ds-Other-settings': JSON.stringify(saved) });
+  const options = { navigator: { userAgent: safari }, search: '?id=1&threads=1', games: [game], localStorageObject: store };
+  const env = await environment(playerSource, options);
+  assert.equal(env.window.EJS_defaultOptions.citra_use_hw_shader_cache, 'disabled');
+  assert.equal(env.window.EJS_defaultOptions.citra_use_hw_shaders, undefined);
+  const migrated = JSON.parse(store.getItem('ejs-1-3ds-Fixed save-settings'));
+  assert.equal(migrated.settings.citra_use_hw_shader_cache, 'disabled');
+  assert.equal(migrated.settings.citra_use_hw_shaders, 'enabled');
+  assert.deepEqual(migrated.controlSettings, saved.controlSettings);
+  assert.deepEqual(migrated.cheats, saved.cheats);
+  assert.equal(store.getItem('save-data'), 'untouched');
+  assert.equal(store.getItem('ejs-2-3ds-Other-settings'), JSON.stringify(saved));
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).threeDsStartupPolicy.savedPreferenceMigration, 'applied');
+  migrated.settings.citra_use_hw_shader_cache = 'enabled';
+  store.setItem('ejs-1-3ds-Fixed save-settings', JSON.stringify(migrated));
+  const repeat = await environment(playerSource, options);
+  assert.equal(JSON.parse(store.getItem('ejs-1-3ds-Fixed save-settings')).settings.citra_use_hw_shader_cache, 'enabled');
+  assert.equal(JSON.parse(repeat.window.sessionStorage.getItem('retro-vault-diagnostics')).threeDsStartupPolicy.savedPreferenceMigration, 'already-applied');
+  for (const change of [{ navigator: { userAgent: 'Mozilla/5.0 Chrome/140 Safari/537.36' } }, { games: [{ ...game, ejsVersion: '4.2.3' }] }, { games: [{ ...game, core: 'nds' }] }]) {
+    const otherStore = storage({ 'ejs-1-3ds-Fixed save-settings': JSON.stringify(saved) });
+    const other = await environment(playerSource, { ...options, ...change, localStorageObject: otherStore });
+    assert.equal(other.window.EJS_defaultOptions.citra_use_hw_shader_cache, undefined);
+    assert.equal(JSON.parse(otherStore.getItem('ejs-1-3ds-Fixed save-settings')).settings.citra_use_hw_shader_cache, 'enabled');
+  }
+});
+
 test('standalone NES comparison excludes custom loaders and preserves normal diagnostics', async () => {
   const shared = storage({ 'retro-vault-diagnostics': 'normal-player-log' });
   const env = await environment(coreTestSource, {

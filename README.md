@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.17.0**. Site releases use
+The current Retro Vault release is **2.17.1**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -803,3 +803,29 @@ interrupted report does not establish jetsam, an allocation failure, or a fixed
 crash. The test uses the normal ROM adapter and runtime diagnostics, with an
 isolated report key. It does not profile native allocation call sites; that
 would require a separately instrumented Azahar build.
+
+
+## Safari 3DS shader-cache policy (2.17.1)
+
+For Safari on the pinned 4.3.0-pre Azahar data path, the normal player now sets
+`citra_use_hw_shader_cache = disabled`. Detection matches the pinned frontend's
+Safari user-agent check. Other browsers, cores, custom data paths and versions,
+and the controlled comparison test retain their existing settings.
+An existing game's saved native shader-cache preference migrates once, using
+its immutable save name. Future explicit choices in native settings remain
+available. The migration changes only the shader-cache preference; it does not
+delete files, game saves, states, controls, cheats, or ROM downloads. Hardware
+shaders retain the native enabled default and existing explicit choices.
+Diagnostics record the requested policy and migration status, not a claimed
+native setting readback. If preference storage is unavailable, diagnostics mark
+the migration unavailable; a saved native preference may still take precedence.
+
+The submitted Safari comparisons used the same game and confirmed all requested
+core variables. The baseline had a reported whole-page reload with a last
+frontend elapsed sample of seven seconds. Shader cache OFF recorded 75 seconds;
+hardware shaders OFF reached a confirmed manual close at 100 seconds. The user
+reported gameplay at about 15 FPS in both alternate conditions. All three reused
+the existing OPFS ROM. These observations do not establish a crash cause or
+long-term stability, and the normal player's persistent save storage differs
+from the comparison's fresh volatile storage. This policy is a targeted
+workaround to validate in the normal player, not a claimed performance fix.

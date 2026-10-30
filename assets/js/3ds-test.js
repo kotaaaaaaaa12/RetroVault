@@ -159,7 +159,7 @@
   });
   element('download').addEventListener('click', () => {
     if (!runs.length) return;
-    const report = { schemaVersion: 1, appVersion: '2.17.0', mode: '3ds-comparison', exportedAt: new Date().toISOString(), memoryScope: 'Core WebAssembly region only; not total resident RAM or GPU use.', runs };
+    const report = { schemaVersion: 1, appVersion: '2.17.1', mode: '3ds-comparison', exportedAt: new Date().toISOString(), memoryScope: 'Core WebAssembly region only; not total resident RAM or GPU use.', runs };
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
     const link = node('a'); link.href = url; link.download = 'retro-vault-3ds-comparison.json'; document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000); element('download').blur();

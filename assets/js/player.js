@@ -43,6 +43,7 @@ let restoreConsoleDiagnostics = null;
 let restoreAudioContextTracking = null;
 let legacyLanguageLoader = false;
 let runtimeSupport = null;
+let threeDsStartupPolicy = null;
 const ownedAudioContexts = new Set();
 
 function renderRomPreparation(stats) {
@@ -231,7 +232,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.17.0",
+    appVersion: "2.17.1",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -249,6 +250,7 @@ function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJ
     errors: [],
     runtimeLog: [],
     localPreparation,
+    ...(threeDsStartupPolicy ? { threeDsStartupPolicy } : {}),
     startMode: "tap-in-player",
     memoryScope: "Core WebAssembly linear memory only; excludes browser, JavaScript, audio, and GPU memory."
   };
@@ -311,6 +313,40 @@ function clearSavedThreadOverride(game) {
     storage.setItem(migrationKey, "1");
   } catch (error) {
     console.debug("Saved preference migration was unavailable:", error);
+  }
+}
+
+function configureSafari3dsCache(game, core, dataPath) {
+  // Match the Safari check in the pinned frontend. Other browsers and runtime
+  // versions retain their existing core defaults and saved preferences.
+  if (threeDsTest || dataPath !== DEFAULT_EJS_DATA_PATH || !['3ds', 'azahar'].includes(core)
+    || !/^((?!chrome|android).)*safari/i.test(String(window.navigator?.userAgent || ''))) return;
+  window.EJS_defaultOptions.citra_use_hw_shader_cache = 'disabled';
+  threeDsStartupPolicy = { name: 'safari-shader-cache-off', requestedDefaults: { citra_use_hw_shader_cache: 'disabled' }, savedPreferenceMigration: 'pending' };
+  try {
+    const storage = window.localStorage;
+    const saveName = game.saveName || game.title;
+    const migrationKey = 'retro-vault-safari-3ds-cache-v1:' + JSON.stringify([game.id, saveName]);
+    if (storage.getItem(migrationKey) === '1') {
+      threeDsStartupPolicy.savedPreferenceMigration = 'already-applied';
+      return;
+    }
+    for (const system of ['3ds', 'azahar']) {
+      const key = `ejs-${game.id}-${system}-${saveName}-settings`;
+      const raw = storage.getItem(key);
+      if (!raw) continue;
+      let saved;
+      try { saved = JSON.parse(raw); } catch { continue; }
+      if (!saved?.settings || typeof saved.settings !== 'object' || Array.isArray(saved.settings)) continue;
+      saved.settings.citra_use_hw_shader_cache = 'disabled';
+      storage.setItem(key, JSON.stringify(saved));
+    }
+    // Only this preference is migrated once. Later explicit native settings
+    // choices remain available; no save files or shader-cache files are deleted.
+    storage.setItem(migrationKey, '1');
+    threeDsStartupPolicy.savedPreferenceMigration = 'applied';
+  } catch {
+    threeDsStartupPolicy.savedPreferenceMigration = 'unavailable';
   }
 }
 
@@ -523,6 +559,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
 
   configureOptionalOptions(game);
   if (!threeDsTest) clearSavedThreadOverride(game);
+  configureSafari3dsCache(game, core, dataPath);
   configureDsTouchMode(game, core, loaderVersion);
   beginDiagnostics(game, threads, loaderVersion);
   if (typeof window.RetroResourceDiagnostics === "function") {
