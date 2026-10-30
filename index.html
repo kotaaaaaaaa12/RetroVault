@@ -9,11 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.15.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.15.0" onerror="this.onerror=null;this.href='./assets/css/style.css?v=2.15.0'">
-  <script src="/assets/js/i18n.js?v=2.15.0"></script>
-  <link rel="stylesheet" href="/assets/css/notices.css?v=2.15.0">
-  <script src="/assets/js/notices.js?v=2.15.0"></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.16.0">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.16.0" onerror="this.onerror=null;this.href='./assets/css/style.css?v=2.16.0'">
+  <script src="/assets/js/i18n.js?v=2.16.0"></script>
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.16.0">
+  <script src="/assets/js/notices.js?v=2.16.0"></script>
 </head>
 <body>
   <script>
@@ -54,7 +54,10 @@
 
       <button id="local-rom-btn" class="local-rom-btn" type="button" data-i18n="openLocal">OPEN LOCAL ROM</button>
       <input id="local-rom-input" class="sr-only" aria-label="Choose a ROM file" data-i18n-aria-label="chooseLocal" tabindex="-1" type="file" autocomplete="off">
-      <a class="admin-link" href="/admin/" data-i18n="adminManage">Manage library</a>
+      <div class="library-links">
+        <a class="admin-link" href="/admin/" data-i18n="adminManage">Manage library</a>
+        <a class="admin-link" href="/pages/downloads.html" data-i18n="romCacheHeading">Device downloads</a>
+      </div>
     </div>
   </header>
 
@@ -151,8 +154,8 @@
       });
 
       const sources = [
-        "/assets/js/app.js?v=2.15.0",
-        "./assets/js/app.js?v=2.15.0"
+        "/assets/js/app.js?v=2.16.0",
+        "./assets/js/app.js?v=2.16.0"
       ];
 
       const load = index => {

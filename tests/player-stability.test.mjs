@@ -1453,7 +1453,8 @@ test('Azahar captures native factory output before initialization, preserves cal
   assert.equal(configured.printErr('[ERROR] Failed to load content'), 'forwarded');
   assert.equal(canvas.getContext('webgl2'), context);
   const args = ['/game.3ds']; assert.equal(module.callMain(args), 1);
-  assert.deepEqual(args, ['/game.3ds']); assert.deepEqual(mainArgs[0], ['-v', '/game.3ds']);
+  assert.deepEqual(args, ['/game.3ds']); assert.deepEqual(mainArgs[0], ['/game.3ds']);
+  assert.equal(support.nativeSnapshot().startup.verboseForced, false);
   const snapshot = support.nativeSnapshot();
   assert.equal(snapshot.startup.mainReturnCode, 1);
   assert.equal(snapshot.startup.graphics[0].created, true);
@@ -1488,6 +1489,17 @@ test('native logs are bounded, redact URL secrets, retain issues and leave other
     other.attach(emulator); assert.equal(emulator.initModule, initModule);
     assert.equal(other.nativeSnapshot(), null); other.stop();
   }
+});
+
+test('production Azahar debug output is counted without rebuilding logs while critical errors remain visible', async () => {
+  const env = await environment(playerSource), support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  support.attach({ ejs_version: '4.3.0-pre', getCore: () => 'azahar', debug: false });
+  for (let i = 0; i < 1000; i++) support.coreOutput('printErr', [`[1.000] Render.OpenGL <Debug> shader.cpp:10: shader ${i}`]);
+  assert.equal(support.coreLog.length, 0); assert.equal(support.coreIssues.length, 0);
+  assert.equal(support.nativeSnapshot().startup.droppedDebugLines, 1000);
+  support.coreOutput('printErr', ['[1.100] Debug <Critical> Assertion Failed!']);
+  assert.equal(support.coreIssues.length, 1);
+  support.stop();
 });
 
 test('Azahar encrypted-content errors remain visible after the native frontend start callback', async () => {

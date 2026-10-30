@@ -179,6 +179,7 @@ function sampleDiagnostics(phase) {
   const module = window.EJS_emulator?.Module;
   const bytes = module?.HEAPU8?.byteLength ?? module?.HEAP8?.byteLength;
   if (Number.isFinite(bytes) && bytes > 0) {
+    if (bytes !== diagnostics.wasmHeapBytes) diagnostics.heapSamples = [...(diagnostics.heapSamples || []), { elapsedMs: Date.now() - diagnostics.startedAtMs, bytes }].slice(-8);
     if (diagnostics.wasmHeapBytes !== null && bytes > diagnostics.wasmHeapBytes) diagnostics.heapGrowthEvents += 1;
     diagnostics.wasmHeapBytes = bytes;
     diagnostics.peakWasmHeapBytes = Math.max(diagnostics.peakWasmHeapBytes || 0, bytes);
@@ -227,7 +228,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.15.0",
+    appVersion: "2.16.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },

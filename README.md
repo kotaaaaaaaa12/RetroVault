@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.15.0**. Site releases use
+The current Retro Vault release is **2.16.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -703,3 +703,67 @@ stale-file cleanup, and normal deletion. The actual pinned frontend/core FS was
 also exercised with a synthetic container through the OPFS path, preserving
 the correction and making no ROM network requests after preparation. This is
 not a successful commercial-game boot or a Safari-device verification.
+
+## Keep completed ROM copies and manage device downloads (2.16.0)
+
+Completed Safari library copies now live in `retrovault-rom-cache-v1` rather
+than being deleted on Close. Cache keys are SHA-256 of the source URL, exact
+server ETag and size. Manifests contain only a schema, display filename, size
+and ETag, and are written and flushed after the ROM has been fully written,
+flushed, and size-checked. A partial ROM without a valid manifest cannot be
+reused. Reuse also checks the cached size and compares its first 256 KiB with
+the newly validated server probe. The existing content checks then read from
+the cached file, preserving virtual header correction. Normal reuse downloads
+only this small update probe, not the full ROM.
+
+The URL/ETag/size identity changing requires a new download. A corrupt prefix
+or wrong cached size invalidates that copy. The previous release's temporary
+files have no identity manifest and cannot be trusted for migration; the first
+2.16.0 use therefore needs one fresh download. Unlocked old temporary copies
+are reclaimed during preparation. Completed cache entries survive releases
+while their identity and schema remain valid. Browser quota policy or site-data
+cleanup may still evict them, and a server check is required before reuse; this
+is not an offline-first application. No persistent-storage permission is
+requested. Older cache versions remain available for explicit removal.
+
+The public `/pages/downloads.html` page, linked in the library header, shows
+only ROM copies on this device with their size and completion state. It offers
+individual and bulk removal. Deletion removes the ROM first and only then its
+manifest. Active exclusive access handles prevent removal; another player of
+the same cached version receives a named busy error rather than redownloading
+or truncating an active file. Completed copies are retained on Close; incomplete
+or cancelled copies are removed. Web Locks serialize cache operations when
+available, with OPFS exclusive file handles providing the file-level lock.
+No server files, save databases, or unrelated OPFS directories are deleted.
+
+### Limits of the new crash evidence
+
+The supplied 2.15.0 log shows a complete 1 GiB disk copy, 118 ROM reads, no
+recorded I/O failure, no fatal JavaScript error, and a last phase of `running`
+seven seconds after startup. It includes rendering/shader activity and a
+WASM linear heap of 2077753344 bytes (about 1.94 GiB). A pending-read snapshot
+is recorded before the read completes and is not itself proof of a failed read.
+The log contains no Close activity or browser termination reason. It cannot
+distinguish process termination, memory pressure, a GPU failure without an
+event, or another unrecorded stop; memory exhaustion is not established.
+The pinned JS runtime advertises a heap maximum of 4294901760 bytes, so the
+observed value is not proof of a 2 GiB WASM maximum either.
+
+The diagnostics wrapper no longer inserts RetroArch `-v` into normal startup.
+The upstream Azahar libretro constructor separately sets its own Debug filter,
+so removing `-v` alone does not disable core-generated Debug output. In normal
+production mode these lines now only increment a bounded counter; they do not
+rebuild retained log arrays or schedule diagnostic persistence. Errors and
+critical lines are still captured, and explicit debug mode keeps detailed
+capture. Heap-size changes are retained as up to eight timestamped samples.
+These changes remove unnecessary diagnostic overhead, but do not establish or
+guarantee a fix for the reporting-device crash or reduce the core's intrinsic
+native allocations. A new device run is needed to assess the remaining stop.
+
+Validation covers cache reuse, ETag and size changes, corrupted/truncated
+entries, busy locks, cancellation, deletion scope, and production log filtering.
+Real-browser tests verify reuse across navigation with exactly one probe,
+offline reads after preparation, server-version refresh, protected active
+deletion, and English/Japanese mobile cache management. The actual pinned
+frontend/core filesystem still receives corrected virtual flags without
+forced verbosity, using synthetic content only.

@@ -93,6 +93,12 @@
     trackContext(context) { this.trace(context, "resume", "AudioContext.resume"); }
     coreOutput(source, args) {
       if (this.stopped) return;
+      if (this.coreStartup && this.emulator?.debug !== true && args.some(value => typeof value === 'string' && /<Debug>|\[DEBUG\]/.test(value))) {
+        // The pinned core also emits its own Debug messages independently of
+        // RetroArch -v. Avoid rebuilding diagnostic arrays for every such line.
+        this.coreStartup.droppedDebugLines = Math.min(1000000, (this.coreStartup.droppedDebugLines || 0) + 1);
+        return;
+      }
       const detail = args.filter(value => typeof value === 'string' || typeof value === 'number')
         .slice(0, 3).map(value => String(value).slice(0, 500)).join(' ')
         .replace(/\x1b\[[0-9;]*m/g, '')
@@ -133,7 +139,9 @@
         return function(args = [], ...rest) {
           support.coreStartup.mainInvoked = true;
           const options = Array.isArray(args) ? [...args] : args;
-          if (Array.isArray(options) && !options.includes('-v')) options.unshift('-v');
+          // Preserve native production verbosity. Forcing -v floods the core's
+          // logging path with debug messages during rendering and game service calls.
+          support.coreStartup.verboseForced = false;
           try {
             const result = Reflect.apply(original, this, [options, ...rest]);
             support.coreStartup.mainReturned = true;

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="format-detection" content="telephone=no">
+  <title data-i18n="romCacheTitle">Device downloads | Retro Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.16.0">
+  <link rel="stylesheet" href="/assets/css/admin.css?v=2.16.0">
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.16.0">
+  <link rel="stylesheet" href="/assets/css/downloads.css?v=2.16.0">
+  <script src="/assets/js/i18n.js?v=2.16.0" defer></script>
+  <script src="/assets/js/notices.js?v=2.16.0" defer></script>
+  <script src="/assets/js/rom-cache.js?v=2.16.0" defer></script>
+  <script src="/assets/js/downloads.js?v=2.16.0" defer></script>
+</head>
+<body>
+<main class="admin-shell">
+  <header class="vault-header">
+    <div class="vault-identity"><a class="vault-brand" href="/">RETRO VAULT</a><span class="vault-kicker" data-i18n="romCacheHeading">Device downloads</span></div>
+    <nav><a href="/" data-i18n="backToGames">Back to games</a><label class="language"><span data-i18n="language">Language</span><select id="language-select"><option value="auto" data-i18n="auto">Auto</option><option value="en">English</option><option value="ja" lang="ja">日本語</option></select></label></nav>
+  </header>
+  <section class="panel cache-panel">
+    <h1 data-i18n="romCacheHeading">Device downloads</h1>
+    <p class="hint" data-i18n="romCacheHelp">Downloaded 3DS ROMs stay on this device for reuse. A small request checks for server updates before play. Browser cleanup can remove these copies. Deleting a download keeps your game saves.</p>
+    <p id="cache-summary" role="status" aria-live="polite"></p>
+    <div class="actions"><button id="cache-refresh" type="button" data-i18n="romCacheRefresh">Refresh</button><button id="cache-clear" type="button" data-i18n="romCacheClear">Delete all downloads</button></div>
+    <p id="cache-empty" class="hint" data-i18n="romCacheEmpty" hidden>No downloaded ROMs on this device.</p>
+    <div id="cache-entries"></div>
+  </section>
+</main>
+</body>
+</html>

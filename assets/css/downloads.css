@@ -1,0 +1,7 @@
+.cache-panel { margin-top: 24px; }
+.cache-entry { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid var(--border); }
+.cache-entry > div { min-width: 0; }
+.cache-entry h2 { overflow-wrap: anywhere; font-size: 16px; margin: 0 0 6px; }
+.cache-entry p { margin: 0; }
+.cache-entry button { flex: 0 0 auto; min-height: 44px; }
+@media (max-width: 480px) { .cache-entry { align-items: flex-start; flex-direction: column; gap: 12px; } }
