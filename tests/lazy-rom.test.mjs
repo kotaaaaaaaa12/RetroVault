@@ -189,3 +189,21 @@ test('range worker rejects truncated and oversized partial responses',async()=>{
     await env.init('https://retro.example/data/roms/test.3ds');assert.equal(env.messages[0].ready,false);
   }
 });
+test('verification prefetch uses the same range validation and never consumes a full response', async () => {
+  let mode = 'valid', consumed = 0;
+  const env = workerEnvironment(async (url, options) => {
+    if (mode === 'full') return { status: 200, headers: new Headers(), body: { cancel: () => Promise.resolve(), getReader() { consumed++; throw new Error('Full download attempted'); } } };
+    const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(options.headers.Range);
+    const start = Number(a), end = Number(b);
+    return new Response(new Uint8Array(end - start + 1).fill(0x37), { status: 206, headers: { 'Content-Range': `bytes ${start}-${end}/4294967296`, ETag: mode === 'changed' ? '"changed"' : '"fixed"' } });
+  });
+  await env.init('https://retro.example/data/roms/test.3ds');
+  for (const [index, value] of ['valid', 'changed', 'full'].entries()) {
+    mode = value;
+    await env.self.onmessage({ data: { type: 'prefetch', requestId: index + 1, start: 262144, end: 524288 } });
+    assert.equal(env.messages.at(-1).type, 'prefetch');
+    assert.equal(env.messages.at(-1).requestId, index + 1);
+    assert.equal(env.messages.at(-1).ok, value === 'valid');
+  }
+  assert.equal(consumed, 0);
+});

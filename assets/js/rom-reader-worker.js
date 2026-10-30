@@ -52,13 +52,14 @@ self.onmessage = async event => {
     } catch { self.postMessage({ ready: false }); }
     return;
   }
-  if (message.type !== 'read') return;
+  if (!['read', 'prefetch'].includes(message.type)) return;
   try {
     if (!Number.isSafeInteger(message.start) || !Number.isSafeInteger(message.end) || message.start < 0 || message.end <= message.start || message.end - message.start > bytes.length) throw new Error('Invalid read');
     const chunk = remoteUrl ? await range(message.start, message.end) : new Uint8Array(new FileReaderSync().readAsArrayBuffer(file.slice(message.start, message.end)));
     if (chunk.length > bytes.length || chunk.length !== message.end - message.start) throw new Error('Short read');
     bytes.set(chunk);
+    if (message.type === 'prefetch') { self.postMessage({ type: 'prefetch', requestId: message.requestId, ok: true, length: chunk.length }); return; }
     Atomics.store(state, 1, chunk.length);
     Atomics.store(state, 0, 2);
-  } catch { Atomics.store(state, 0, -1); }
+  } catch { if (message.type === 'prefetch') self.postMessage({ type: 'prefetch', requestId: message.requestId, ok: false }); else Atomics.store(state, 0, -1); }
 };

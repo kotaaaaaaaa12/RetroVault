@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.13.4**. Site releases use
+The current Retro Vault release is **2.14.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -572,3 +572,44 @@ result triggers decryption or automatic flag normalization.
 
 The SHA-256 comparison follows the exheader verification used by
 [Project_CTR makerom](https://github.com/3DSGuy/Project_CTR/blob/master/makerom/src/ncch.c).
+
+## Normalize verified plaintext headers for the pinned Azahar core (2.14.0)
+
+The reporting library ROM has a matching plaintext exheader digest while its
+NCCH no-crypto flag is unset. Azahar rejects that flag before loading the game.
+The range adapter now checks additional content before creating a read-only
+virtual correction. It never writes to R2, the uploaded file, or cached source
+bytes, and it does not decrypt data or supply encryption keys.
+
+The correction applies only to partition zero of a recognized NCSD, or a direct
+NCCH, in the library range path, using NCCH version 2 and 512-byte media units.
+The exheader must match its stored digest. The ExeFS superblock and every
+populated file in the pinned core's eight-entry layout must also match their
+stored SHA-256 digests, including a required `.code` entry. A present RomFS must
+have a matching superblock digest. All declared bounds, overlaps and check
+limits must pass. A normally marked no-crypto ROM needs no extra checks.
+
+Successful checks set only bit 2 at NCCH+0x18F in returned read buffers.
+Other flag bits and all source bytes remain intact. Partial, repeated, and
+cross-block reads receive the same virtual value. Diagnostics record original
+and virtual flags under `romIO.header.compatibility`, retained after Close.
+The older comparison against the probe will intentionally differ after a
+correction; `deliveredMatchesVirtual` and
+`unexpectedDeliveryMismatchObserved` distinguish this from a transfer error.
+
+Additional reads are asynchronous worker requests in 256 KiB blocks, using
+the same exact ETag/206/Content-Range validation and 8 MiB LRU cache as playback.
+Superblock checks are limited to 1 MiB each; individual ExeFS files to 32 MiB,
+and combined ExeFS file checks to 64 MiB. Each file is hashed separately with
+Web Crypto, so the temporary input buffer is at most 32 MiB, never the whole
+ROM. Preparation is bounded to 60 seconds with a 6-second per-read deadline.
+Close cancels the pending request and terminates its worker. Verification I/O
+failure rejects mounting without falling back to a full download. A hash
+mismatch, unsupported layout, unavailable digest, or exceeded check limit
+leaves the flag untouched and records the reason.
+
+This checks the executable files and selected RomFS metadata, not every byte
+of RomFS, the authenticity of its unsigned hashes, or all NCSD partitions.
+It does not prove overall ROM integrity or guarantee game compatibility.
+Local-only lazy-file loading and other systems are unchanged. No save data
+is cleared or migrated by this feature.

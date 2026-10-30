@@ -48,6 +48,69 @@
       return { ...result, state: 'unavailable' };
     }
   }
+  async function verifyPlaintextRegions(first, size, header, read) {
+    const result = { state: 'not-applied', scope: 'NCCH exheader, ExeFS files and RomFS superblock; not the complete RomFS', checks: [] };
+    const skip = reason => ({ ...result, reason });
+    if (header?.state !== 'observed') return skip('header-unavailable');
+    if (header.noCryptoFlag) return skip('already-no-crypto');
+    if (header.exheaderHash?.state !== 'match') return skip('exheader-not-verified');
+    result.checks.push({ region: 'exheader', state: 'match', bytesHashed: 1024 });
+    const base = header.ncchOffset;
+    const view = new DataView(first.buffer, first.byteOffset, first.byteLength);
+    const u32 = at => view.getUint32(base + at, true);
+    // Restrict normalization to the standard format used by the pinned core.
+    if (view.getUint16(base + 0x112, true) !== 2 || first[base + 0x18e] !== 0) return skip('unsupported-ncch-layout');
+    const contentSize = u32(0x104) * 512, end = base + contentSize;
+    if (contentSize < 0xa00 || end > size || (header.format === 'NCSD' && contentSize > header.partitionSize)) return skip('invalid-content-bounds');
+    const regions = [
+      { region: 'exefs-superblock', offset: u32(0x1a0) * 512, size: u32(0x1a4) * 512, hashSize: u32(0x1a8) * 512, hashAt: base + 0x1c0 },
+      { region: 'romfs-superblock', offset: u32(0x1b0) * 512, size: u32(0x1b4) * 512, hashSize: u32(0x1b8) * 512, hashAt: base + 0x1e0 }
+    ];
+    const [exefs, romfs] = regions;
+    for (const section of regions) {
+      if (!section.size && section === romfs && !section.offset && !section.hashSize) continue;
+      if (section.offset < 0xa00 || section.size < 512 || section.hashSize < 512 || section.hashSize > section.size || base + section.offset + section.size > end) return skip('invalid-section-bounds');
+      if (section.hashSize > BLOCK) return skip('superblock-check-limit');
+    }
+    if (romfs.size && exefs.offset < romfs.offset + romfs.size && romfs.offset < exefs.offset + exefs.size) return skip('overlapping-sections');
+    let bytesHashed = 1024;
+    const check = async (region, start, length, expected) => {
+      if (!expected.some(byte => byte !== 0)) { result.checks.push({ region, state: 'missing-digest' }); return null; }
+      const bytes = await read(start, length);
+      if (bytes.length !== length) throw new Error('lazyRomReadError');
+      let digest;
+      try { digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes)); }
+      catch { result.checks.push({ region, state: 'unavailable' }); return null; }
+      const matches = digest.every((byte, index) => byte === expected[index]);
+      bytesHashed += length;
+      result.checks.push({ region, state: matches ? 'match' : 'mismatch', bytesHashed: length });
+      return matches ? bytes : null;
+    };
+    const exefsBytes = await check(exefs.region, base + exefs.offset, exefs.hashSize, first.subarray(exefs.hashAt, exefs.hashAt + 32));
+    if (!exefsBytes) return skip('exefs-superblock-not-verified');
+    if (exefsBytes.subarray(0x80, 0x100).some(byte => byte !== 0)) return skip('unsupported-exefs-layout');
+    const files = [], table = new DataView(exefsBytes.buffer, exefsBytes.byteOffset, exefsBytes.byteLength);
+    let total = 0, hasCode = false;
+    // The pinned Azahar core supports eight entries with hashes in reverse order.
+    for (let i = 0; i < 8; i++) {
+      const at = i * 16, name = exefsBytes.subarray(at, at + 8);
+      const offset = table.getUint32(at + 8, true), length = table.getUint32(at + 12, true);
+      if (!name.some(byte => byte !== 0) && !offset && !length) continue;
+      if (!name.some(byte => byte !== 0) || !length || 512 + offset + length > exefs.size) return skip('invalid-exefs-entry');
+      const start = base + exefs.offset + 512 + offset;
+      if (files.some(file => start < file.start + file.length && file.start < start + length)) return skip('overlapping-exefs-files');
+      total += length;
+      if (length > 32 * BLOCK || total > 64 * BLOCK) return skip('exefs-check-limit');
+      hasCode ||= String.fromCharCode(...name).replace(/\0.*$/, '') === '.code';
+      files.push({ start, length, region: `exefs-file-${i}`, hashAt: 0x1e0 - i * 32 });
+    }
+    if (!hasCode) return skip('missing-code-entry');
+    for (const file of files) {
+      if (!await check(file.region, file.start, file.length, exefsBytes.subarray(file.hashAt, file.hashAt + 32))) return skip('exefs-file-not-verified');
+    }
+    if (romfs.size && !await check(romfs.region, base + romfs.offset, romfs.hashSize, first.subarray(romfs.hashAt, romfs.hashAt + 32))) return skip('romfs-superblock-not-verified');
+    return { ...result, state: 'verified', bytesHashed };
+  }
   class LazyRom {
     constructor(file, changed = () => {}) {
       this.remote = typeof file.url === 'string';
@@ -57,11 +120,19 @@
       this.shared = new SharedArrayBuffer(this.block + 8);
       this.state = new Int32Array(this.shared, 0, 2);
       this.bytes = new Uint8Array(this.shared, 8);
-      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.13.4');
+      this.worker = new Worker('/assets/js/rom-reader-worker.js?v=2.14.0');
       this.ready = new Promise((resolve, reject) => {
         this.rejectReady = reject;
         this.initTimeout = setTimeout(() => { this.worker.terminate(); reject(new Error('lazyRomUnavailable')); }, 10000);
         this.worker.onmessage = async event => {
+          if (event.data.type === 'prefetch') {
+            const pending = this.pendingPrefetch;
+            if (!pending || event.data.requestId !== pending.id) return;
+            this.pendingPrefetch = null; clearTimeout(pending.timer);
+            if (!event.data.ok || event.data.length !== pending.length) pending.reject(new Error('lazyRomReadError'));
+            else pending.resolve(this.bytes.slice(0, event.data.length));
+            return;
+          }
           clearTimeout(this.initTimeout);
           if (this.stopped) return;
           if (!event.data.ready) return reject(new Error('lazyRomUnavailable'));
@@ -75,13 +146,54 @@
             this.stats.header.exheaderHash = await inspectExheaderHash(first, size, this.stats.header);
             if (this.stopped) return;
             this.stats.cacheBytes = firstLength; this.stats.bytesRead = firstLength; this.stats.largestRead = firstLength;
+            this.stats.state = 'verifying'; this.changed(this.stats);
+            try {
+              this.verificationDeadline = performance.now() + 60000;
+              this.stats.header.compatibility = await verifyPlaintextRegions(first, size, this.stats.header, (start, length) => this.readAsync(start, length));
+              if (this.stopped) return;
+              if (this.stats.header.compatibility.state === 'verified') {
+                this.virtualFlagsByte = this.stats.header.flagsByte | 4;
+                Object.assign(this.stats.header.compatibility, { state: 'applied', flagsOffset: this.stats.header.flagsOffset, originalFlagsByte: this.stats.header.flagsByte, virtualFlagsByte: this.virtualFlagsByte });
+              }
+            } catch (error) {
+              this.stats.header.compatibility = { state: 'not-applied', reason: 'verification-read-failed' };
+              return reject(error);
+            }
           }
           this.stats.state = 'ready'; this.changed(this.stats); resolve();
         };
-        this.worker.onerror = () => { clearTimeout(this.initTimeout); reject(new Error('lazyRomUnavailable')); };
+        this.worker.onerror = () => { clearTimeout(this.initTimeout); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } reject(new Error('lazyRomUnavailable')); };
       });
       this.ready.catch(() => { if (!this.stopped) { this.worker.terminate(); this.stats.state = 'failed'; this.changed(this.stats); } });
       try { this.worker.postMessage({ type: 'init', ...(this.remote ? { url: file.url } : { file }), shared: this.shared }); } catch (error) { clearTimeout(this.initTimeout); this.worker.terminate(); this.rejectReady(error); }
+    }
+    async readAsync(position, length) {
+      if (!Number.isSafeInteger(position) || position < 0 || !Number.isSafeInteger(length) || length < 1 || length > 32 * BLOCK || position + length > this.file.size) throw new Error('lazyRomReadError');
+      const output = new Uint8Array(length);
+      for (let done = 0; done < length;) {
+        if (this.stopped || performance.now() > this.verificationDeadline) throw new Error('lazyRomReadError');
+        const at = position + done, block = Math.floor(at / this.block), start = block * this.block;
+        let bytes = this.cache.get(block);
+        if (!bytes) {
+          const end = Math.min(start + this.block, this.file.size);
+          bytes = await new Promise((resolve, reject) => {
+            if (this.pendingPrefetch) return reject(new Error('lazyRomReadError'));
+            const id = this.prefetchId = (this.prefetchId || 0) + 1;
+            const timer = setTimeout(() => { this.pendingPrefetch = null; reject(new Error('lazyRomReadError')); }, 6000);
+            this.pendingPrefetch = { id, length: end - start, timer, resolve, reject };
+            try { this.worker.postMessage({ type: 'prefetch', requestId: id, start, end }); }
+            catch (error) { clearTimeout(timer); this.pendingPrefetch = null; reject(error); }
+          });
+          if (this.stopped) throw new Error('lazyRomReadError');
+          if (this.cache.size >= BLOCK * LIMIT / this.block) this.cache.delete(this.cache.keys().next().value);
+          this.stats.bytesRead += bytes.length; this.stats.largestRead = Math.max(this.stats.largestRead, bytes.length);
+        } else this.cache.delete(block);
+        this.cache.set(block, bytes);
+        const offset = at - start, count = Math.min(length - done, bytes.length - offset);
+        output.set(bytes.subarray(offset, offset + count), done); done += count;
+        this.stats.cacheBytes = Array.from(this.cache.values()).reduce((sum, chunk) => sum + chunk.length, 0);
+      }
+      return output;
     }
     read(position, length) {
       if (this.stopped) throw new Error('lazyRomReadError');
@@ -115,6 +227,8 @@
         const offset = at - start; const take = Math.min(count - done, bytes.length - offset);
         output.set(bytes.subarray(offset, offset + take), done); done += take;
       }
+      const header = this.stats.header;
+      if (this.virtualFlagsByte !== undefined && position <= header.flagsOffset && position + count > header.flagsOffset) output[header.flagsOffset - position] = this.virtualFlagsByte;
       this.stats.reads++; this.stats.cacheBytes = Array.from(this.cache.values()).reduce((sum, bytes) => sum + bytes.length, 0);
       return output;
     }
@@ -143,6 +257,9 @@
               header.deliveredNoCryptoFlag = !!(flag & 4);
               header.deliveredMatchesProbe = flag === header.flagsByte;
               header.deliveryMismatchObserved = header.deliveryMismatchObserved === true || flag !== header.flagsByte;
+              if (header.compatibility?.state === 'applied') header.deliveredMatchesVirtual = flag === header.compatibility.virtualFlagsByte;
+              const expected = header.compatibility?.state === 'applied' ? header.compatibility.virtualFlagsByte : header.flagsByte;
+              header.unexpectedDeliveryMismatchObserved = header.unexpectedDeliveryMismatchObserved === true || flag !== expected;
               header.deliveryChecks = Math.min(1000000, (header.deliveryChecks || 0) + 1);
             }
             if (reader.stats.reads === 1 || reader.stats.reads % 64 === 0) reader.changed(reader.stats);
@@ -160,7 +277,7 @@
       };
       this.stats.state = 'mounted'; this.changed(this.stats); return path;
     }
-    stop() { this.stopped = true; clearTimeout(this.initTimeout); this.rejectReady(new Error('lazyRomReadError')); this.worker.terminate(); this.cache.clear(); this.stats.cacheBytes = 0; }
+    stop() { this.stopped = true; clearTimeout(this.initTimeout); this.rejectReady(new Error('lazyRomReadError')); if (this.pendingPrefetch) { clearTimeout(this.pendingPrefetch.timer); this.pendingPrefetch.reject(new Error('lazyRomReadError')); this.pendingPrefetch = null; } this.worker.terminate(); this.cache.clear(); this.stats.cacheBytes = 0; }
   }
   function install(emulator, source, changed) {
     const file = typeof source === 'string' ? { url: source, name: decodeURIComponent(new URL(source, window.location.href).pathname.split('/').pop()), size: 0 } : source;
@@ -181,5 +298,5 @@
     emulator.download = wrapped;
     return { stats: reader.stats, stop() { reader.stop(); if (emulator.download === wrapped) emulator.download = original; } };
   }
-  window.RetroLazyRom = { LazyRom, install, inspectHeader, inspectExheaderHash };
+  window.RetroLazyRom = { LazyRom, install, inspectHeader, inspectExheaderHash, verifyPlaintextRegions };
 })();
