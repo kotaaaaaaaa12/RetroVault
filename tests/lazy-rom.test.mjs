@@ -30,3 +30,41 @@ test('unsupported runtimes are rejected before the normal download method change
   assert.throws(()=>window.RetroLazyRom.install(emulator,{size:4294967296}),/lazyRomUnavailable/);
   assert.equal(emulator.download,original);
 });
+
+const workerSource = await readFile(new URL('../assets/js/rom-reader-worker.js', import.meta.url), 'utf8');
+function workerEnvironment(fetch) {
+  const messages = [];
+  const self = { location: { href: 'https://retro.example/assets/js/rom-reader-worker.js', origin: 'https://retro.example' }, postMessage: message => messages.push(message) };
+  vm.runInNewContext(workerSource, { self, fetch, URL, AbortController, setTimeout, clearTimeout, Atomics });
+  const shared = new SharedArrayBuffer(262144 + 8);
+  return { self, shared, messages, init: url => self.onmessage({ data: { type: 'init', url, shared } }), read: (start, end) => self.onmessage({ data: { type: 'read', start, end } }) };
+}
+test('range worker reads 4 GiB offsets using bounded requests and rejects changed objects', async () => {
+  const calls = []; let tag = '"fixed"';
+  const env = workerEnvironment(async (url, options) => {
+    calls.push(options.headers.Range);
+    const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(options.headers.Range); const start = Number(a), end = Math.min(Number(b),4294967295);
+    return new Response(Uint8Array.from({ length: end-start+1 }, (_,i)=>(start+i)%251), { status:206, headers:{ 'Content-Range':`bytes ${start}-${end}/4294967296`, ETag:tag } });
+  });
+  await env.init('https://retro.example/data/roms/test.3ds');
+  assert.equal(env.messages[0].size,4294967296);
+  await env.read(4294705152,4294967296);
+  assert.equal(Atomics.load(new Int32Array(env.shared,0,2),0),2);
+  assert.equal(new Uint8Array(env.shared,8)[262143],4294967295%251);
+  assert.deepEqual(calls,['bytes=0-262143','bytes=4294705152-4294967295']);
+  tag='"changed"'; await env.read(262144,524288);
+  assert.equal(Atomics.load(new Int32Array(env.shared,0,2),0),-1);
+});
+test('range worker rejects full HTTP 200 bodies without consuming them and rejects external URLs',async()=>{
+  let cancelled=0, consumed=0, requests=0;
+  const env=workerEnvironment(async()=>{requests++;return { status:200,headers:new Headers(),body:{cancel(){cancelled++;return Promise.resolve();},getReader(){consumed++;throw new Error('Full download attempted');}} };});
+  await env.init('https://retro.example/data/roms/test.3ds');
+  assert.equal(env.messages[0].ready,false);assert.equal(consumed,0);assert.equal(cancelled,1);
+  await env.init('https://external.example/data/roms/test.3ds');assert.equal(requests,1);
+});
+test('range worker rejects truncated and oversized partial responses',async()=>{
+  for(const size of [262143,262145]) {
+    const env=workerEnvironment(async()=>new Response(new Uint8Array(size),{status:206,headers:{'Content-Range':'bytes 0-262143/4294967296',ETag:'"fixed"'}}));
+    await env.init('https://retro.example/data/roms/test.3ds');assert.equal(env.messages[0].ready,false);
+  }
+});

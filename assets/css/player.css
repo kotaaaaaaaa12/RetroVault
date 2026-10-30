@@ -214,7 +214,9 @@ body {
 .rv-save-slot h3 { color: var(--accent-3); font-size: .9rem; }
 .rv-save-slot > p { color: var(--muted); font-size: .8rem; }
 .rv-save-slot .rv-save-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.rv-save-actions button:first-child, #save-system-now { border-color: var(--accent); color: #ff8ca3; background: #ff2d5510; }
+.rv-save-actions button[data-save-action="saveHere"], #save-system-now { border-color: var(--accent); color: #ff8ca3; background: #ff2d5510; }
 .rv-save-backups { padding-top: 20px; border-top: 1px solid var(--border); }
 html:lang(ja) .rv-save-root { font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }
 @media(max-width: 740px) { #save-slots { grid-template-columns: 1fr; gap: 0; } .rv-save-brandline .vault-brand { font-size: .9rem; } .rv-save-header { gap: 16px; } }
+
+#save-root .rv-save-selected { border-color: var(--accent, #00aaff); }

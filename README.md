@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.10.1**. Site releases use
+The current Retro Vault release is **2.12.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -270,7 +270,7 @@ native browser-state/settings names. Original uploaded ROM basenames are retaine
 Changing the system, ROM filename/content, core, or emulator version can still
 change save compatibility. Keep backups when changing those settings.
 
-Three device-local state slots, `.rvstate` import/export, legacy-state import,
+Nine shared device-local state slots, `.rvstate` import/export, legacy-state import,
 manual game-save writes, and native save-file import/export remain available.
 State metadata checks game identity, actual backend core, and emulator version.
 Cloud save synchronization is not introduced by the catalog database.
@@ -339,3 +339,52 @@ results through a 1 MiB SharedArrayBuffer. The synchronous core briefly waits
 for each uncached block, with a five-second timeout. The core may still allocate its own
 memory. Safari gameplay and performance are not established by the FS tests.
 Diagnostics record romIO counters; no source ROM is modified or uploaded.
+
+## Library 3DS range reads
+
+Version 2.11.0 extends the pinned Azahar read-only adapter to same-origin library
+ROM URLs under `/data/roms/`. Raw 3DS/CCI/CXI/APP/ELF/AXF files are supported;
+compressed archives are not supported by this path. An initial 256 KiB range
+verifies HTTP 206, Content-Range, object size, and ETag. Later reads must match the
+same object and range exactly. Bodies are consumed with a strict size bound;
+HTTP 200 does not trigger a full-file fallback. No ROM bytes are written to MEMFS.
+The cache holds at most 8 MiB, with 256 KiB network blocks. Local blocks remain
+1 MiB. Games, source objects, and save identifiers are unchanged.
+
+The current core requires synchronous filesystem reads, so a cache miss can
+block the player UI while the worker fetches a range. Each fetch times out after
+4.5 seconds and the shared-memory wait is capped at 5 seconds. This can affect
+playability on slow connections. Each uncached block is another R2 read request;
+this is not a single full-ROM download or a persistent offline ROM cache.
+Core-internal memory allocations remain outside this adapter's cache bound.
+Diagnostic `romIO` records mode, object size, reads, fetched bytes, cache size,
+and pending block offsets. Startup phases now distinguish core initialization,
+file preparation, ROM loading, and game startup. A full Safari game boot is not
+verified by the synthetic file-read checks.
+
+## Shared state slots (2.12.0)
+
+The panel, native quick-save/load methods (including context-menu actions),
+keyboard shortcuts, and native state toolbar use one set of slots 1–9. The panel
+shows the native selected slot and can change it. Native key 1 saves, key 2
+loads, and key 3 cycles selection. Quick saves overwrite without confirmation;
+panel overwrite/load/delete actions retain their confirmations. The native
+single-state toolbar now saves/loads the selected shared slot, regardless of
+its earlier download/browser location preference. Use the panel to export files.
+
+Native quick-state files in the pinned runtime live in MEMFS. Retro Vault
+persists immutable snapshots to the existing `RetroVault-saves` database and
+restores a selected snapshot to the native quick-state path on demand. It does
+not hydrate all nine large payloads at startup. Completed writes survive normal
+player/browser restarts. Wait for the device-save completion notice before
+leaving; abrupt browser termination can interrupt an in-flight write. Game saves
+and state backups remain device-local, without cloud synchronization.
+
+The database name, schema, game identities, and slots 1–3 are unchanged. Existing
+custom slots therefore become shared slots without data conversion or deletion.
+The same core/version compatibility checks apply to native loads and the panel;
+incompatible older records remain exportable. The earlier native single browser
+state is still available through the explicit legacy import button. Slot listing
+reads metadata only. There is no periodic state capture. Native saves are queued
+in order and a failed write leaves the previous committed snapshot intact. Close
+cleanup waits for queued persistence alongside existing game-save flushing.

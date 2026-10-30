@@ -210,7 +210,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.10.1",
+    appVersion: "2.12.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -488,7 +488,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
-    if (gameUrl instanceof File && game.core === '3ds' && gameUrl.size >= 256 * 1048576) {
+    if (game.core === '3ds' && ((gameUrl instanceof File && gameUrl.size >= 256 * 1048576) || typeof gameUrl === 'string')) {
       try {
         lazyRom = window.RetroLazyRom.install(emulator, gameUrl, stats => { sampleDiagnostics(); if (stats.state === 'failed') reportPlayerError('lazyRomReadError'); });
         sampleDiagnostics();
@@ -501,6 +501,16 @@ function startEmulator(game, gameUrl, requestedThreads) {
         };
         reportPlayerError('lazyRomUnavailable');
       }
+    }
+    // Record entry into the actual runtime stages, independent of native status text.
+    for (const [method, phase] of [['initModule', 'initializing-core'], ['downloadFiles', 'preparing-files'], ['startGame', 'starting-game']]) {
+      if (typeof emulator?.[method] !== 'function') continue;
+      const original = emulator[method];
+      emulator[method] = function() { sampleDiagnostics(phase); return Reflect.apply(original, this, arguments); };
+    }
+    if (typeof emulator?.download === 'function') {
+      const original = emulator.download;
+      emulator.download = function(url, type) { if (type?.name === 'rom') sampleDiagnostics('loading-rom'); return Reflect.apply(original, this, arguments); };
     }
     runtimeSupport?.attach(emulator);
     syncEmulatorLanguage();
@@ -700,7 +710,7 @@ function shutdownPlayer(reason = "close") {
     try { fs.syncfs(false, error => done(error ? "failed" : "saved")); }
     catch { done("failed"); }
   });
-  cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation]).then(([flushResult]) => {
+  cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation, saveManager?.nativePending]).then(([flushResult]) => {
     const saveFlush = flushResult.status === "fulfilled" ? flushResult.value : "failed";
     const contexts = existingAudioContexts(module);
     for (const context of contexts) {

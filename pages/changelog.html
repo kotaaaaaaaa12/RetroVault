@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.10.1">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.10.1">
-  <script src="/assets/js/i18n.js?v=2.10.1" defer></script>
-  <script src="/assets/js/changelog.js?v=2.10.1" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.12.0">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.12.0">
+  <script src="/assets/js/i18n.js?v=2.12.0" defer></script>
+  <script src="/assets/js/changelog.js?v=2.12.0" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,18 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-shared-saves">
+      <div class="release-meta"><span>2.12.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-shared-saves" data-i18n="releaseSharedSavesTitle">One set of nine save slots</h2>
+      <ul><li data-i18n="releaseSharedSavesDetails">The save panel, native quick-save/load controls, and native state toolbar share nine durable slots. Keys 1 and 2 save and load the selected slot; key 3 cycles through slots 1–9. Existing Retro Vault slots 1–3 remain available without conversion. Browser restarts preserve completed saves; failed writes retain the prior durable state.</li></ul>
+    </article>
+    <article class="release" aria-labelledby="release-range-rom">
+      <div class="release-meta"><span>2.11.0</span><time datetime="2026-10-30">2026-10-30</time></div>
+      <h2 id="release-range-rom" data-i18n="releaseRangeTitle">Read library 3DS ROMs in blocks</h2>
+      <ul><li data-i18n="releaseRangeReads">Library 3DS ROMs use verified 256 KiB HTTP range reads and an 8 MiB cache on the pinned Azahar runtime. Full-file responses, changed objects, and invalid ranges stop startup instead of falling back to a full download. Diagnostic stages distinguish core initialization from ROM loading. Safari game startup remains unverified.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-versioning">
-      <div class="release-meta"><span>2.10.1</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.10.1</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-versioning" data-i18n="releaseSemverTitle">Readable site version numbers</h2>
       <ul><li data-i18n="releaseSemverNumbers">Site releases start at 1.0.0. Features increment the minor number and fixes increment the patch; the Workers architecture migration starts 2.0.0. Earlier entries retain their original dates. Diagnostics, package metadata, and asset cache versions use the same site version.</li></ul>
     </article>

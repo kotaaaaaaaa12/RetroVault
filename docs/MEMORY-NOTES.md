@@ -203,3 +203,24 @@ expected bytes, with a 512 MiB core heap and cache bounded at 8 MiB. The adapter
 frontend handoff and cleanup are also checked. This is not a commercial-game
 boot test or Safari device test; core-internal allocations and gameplay
 performance remain unverified.
+
+## Library range path (2.11.0)
+
+The submitted 2.10.1 library log requested the R2-backed 3DS URL successfully
+but did not record a game start. Its `loading-core` phase was stale across ROM
+loading. The user separately reports that the small 2048 ELF starts successfully.
+These observations do not prove that memory exhaustion caused the reload.
+
+The library path previously buffered all download chunks and assembled an
+ArrayBuffer. The new worker fetches verified 256 KiB ranges with an 8 MiB LRU
+cache and pins ETag/total size across requests. It rejects unbounded HTTP 200,
+short or oversized bodies, changed objects, and invalid Content-Range values.
+There is no full-file fallback. Network stalls can block synchronous core reads
+for up to five seconds; this implementation does not establish Safari game
+compatibility or bound memory allocated internally by the core.
+
+Validation used the actual pinned Azahar FS and a synthetic 4 GiB HTTP object,
+checking initial bytes, a block boundary, offsets above 2 GiB, and the final 256
+bytes. The measured cache stayed at 8 MiB with a 256 KiB maximum fetch; a server
+returning HTTP 200 was rejected without invoking the frontend full-file path.
+This is an FS/network integration check, not a commercial-game or Safari boot.

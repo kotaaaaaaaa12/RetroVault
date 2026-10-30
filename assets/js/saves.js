@@ -12,6 +12,8 @@
       this.gameKey = storage.identity(game);
       this.store = new storage.SaveStorage();
       this.slots = [];
+      this.nativePending = Promise.resolve();
+      this.nativeRestorers = [];
       this.busy = false;
       this.started = false;
       this.closing = false;
@@ -43,7 +45,7 @@
         this.ensureStates();
         const data = this.emulator.gameManager.getState();
         if (!data?.byteLength) throw new Error("Empty state");
-        this.download(this.metadata(1), new Blob([data]));
+        this.download(this.metadata(this.selectedSlot()), new Blob([data]));
         this.setStatus("backupReady");
       }));
       this.elements["save-legacy-import"].addEventListener("click", () => this.run(async () => {
@@ -80,9 +82,96 @@
       return { ...this.current(), slot, title: this.game.title, savedAt: new Date().toISOString() };
     }
 
+    selectedSlot() {
+      const slot = Number(this.emulator?.getSettingValue?.('save-state-slot') || this.emulator?.settings?.['save-state-slot'] || 1);
+      return Number.isInteger(slot) && slot >= 1 && slot <= 9 ? slot : 1;
+    }
+
+    selectSlot(slot) {
+      if (this.closing) return;
+      this.emulator?.changeSettingOption?.('save-state-slot', String(slot));
+      this.render();
+    }
+
+    queueNative(action) {
+      const pending = this.nativePending.catch(() => {}).then(action);
+      this.nativePending = pending;
+      pending.catch(reason => {
+        this.setError(reason);
+        this.onActivity('state-persist-failed');
+        window.RetroNotices?.notify('save-state', { key: this.status.key, error: true });
+      });
+      return pending;
+    }
+
+    attachNativeSlots() {
+      const emulator = this.emulator;
+      const manager = emulator?.gameManager;
+      if (typeof manager?.quickSave !== 'function' || typeof manager?.quickLoad !== 'function' || !manager.FS?.readFile || !manager.FS?.writeFile) return;
+      const owner = this;
+      const originalSave = manager.quickSave;
+      const originalLoad = manager.quickLoad;
+      const wrap = (target, name, wrapped) => {
+        const original = target[name]; target[name] = wrapped;
+        this.nativeRestorers.push(() => { if (target[name] === wrapped) target[name] = original; });
+      };
+      wrap(manager, 'quickSave', function(slot = 1) {
+        if (owner.closing || owner.busy || !owner.supportsStates()) return false;
+        slot = Number(slot);
+        if (!Number.isInteger(slot) || slot < 1 || slot > 9) return false;
+        const result = originalSave.call(this, slot);
+        if (!result) return result;
+        // Capture an immutable snapshot before another hotkey overwrites MEMFS.
+        try {
+          const data = new Blob([manager.FS.readFile('/' + slot + '-quick.state')]);
+          owner.persistNativeSnapshot(slot, data);
+        } catch (reason) { owner.setError(reason); return false; }
+        return result;
+      });
+      wrap(manager, 'quickLoad', function(slot = 1) {
+        if (owner.closing || owner.busy || !owner.supportsStates()) return;
+        slot = Number(slot);
+        owner.queueNative(async () => {
+          if (owner.closing) return;
+          const record = await owner.store.get(owner.gameKey, slot);
+          if (!record?.data?.size) { owner.setStatus('emptySaveSlot'); window.RetroNotices?.notify('save-state', { key: 'emptySaveSlot' }); return; }
+          if (!storage.compatible(record.metadata, owner.current())) throw Object.assign(new Error('Mismatch'), { name: 'SaveStateMismatch' });
+          manager.FS.writeFile('/' + slot + '-quick.state', new Uint8Array(await record.data.arrayBuffer()));
+          originalLoad.call(manager, slot);
+          owner.setStatus('stateLoadDone', { slot });
+        });
+      });
+      const originalChange = emulator.changeSettingOption;
+      if (typeof originalChange === 'function') wrap(emulator, 'changeSettingOption', function(key, value) {
+        const result = Reflect.apply(originalChange, this, arguments);
+        if (key === 'save-state-slot') owner.render();
+        return result;
+      });
+      // The native toolbar and keyboard shortcuts share the same durable slots.
+      emulator.on?.('saveState', event => {
+        if (owner.closing || owner.busy || !event?.state?.byteLength) return;
+        const slot = owner.selectedSlot();
+        const data = new Blob([event.state]);
+        owner.persistNativeSnapshot(slot, data);
+      });
+      emulator.on?.('loadState', () => manager.quickLoad(owner.selectedSlot()));
+    }
+
+    persistNativeSnapshot(slot, data) {
+      const metadata = this.metadata(slot);
+      return this.queueNative(async () => {
+        await this.store.put(metadata, data);
+        await this.refresh();
+        this.setStatus('stateSaveDone', { slot });
+        if (!this.opened && !this.closing) window.RetroNotices?.notify('save-state', { key: 'stateSaveDone', values: { slot } });
+        this.onActivity('state-persisted');
+      });
+    }
+
     async start() {
       if (this.started || this.closing) return;
       this.started = true;
+      this.attachNativeSlots();
       // The native fullscreen element must contain the save controls as well.
       const host = this.emulator?.elements?.parent || document.body;
       host.appendChild(this.elements["save-root"]);
@@ -137,13 +226,14 @@
       const list = this.elements["save-slots"];
       this.elements["state-support"].hidden = this.supportsStates();
       list.replaceChildren();
-      for (let slot = 1; slot <= 3; slot += 1) {
+      for (let slot = 1; slot <= 9; slot += 1) {
         const metadata = this.slots.find(item => item.slot === slot);
         const row = document.createElement("section");
         row.className = "rv-save-slot";
+        row.classList.toggle("rv-save-selected", slot === this.selectedSlot());
         const title = document.createElement("h3");
         title.id = "rv-slot-title-" + slot;
-        title.textContent = t("saveSlotName", { slot });
+        title.textContent = t(slot === this.selectedSlot() ? "selectedSaveSlot" : "saveSlotName", { slot });
         row.setAttribute("aria-labelledby", title.id);
         const date = document.createElement("p");
         date.textContent = metadata ? t("stateSavedAt", { date: this.formatDate(metadata.savedAt) }) : t("emptySaveSlot");
@@ -157,6 +247,7 @@
         const actions = document.createElement("div");
         actions.className = "rv-save-actions";
         for (const [key, action, disabled] of [
+          ["selectSaveSlot", () => this.selectSlot(slot), slot === this.selectedSlot()],
           ["saveHere", () => this.saveState(slot), !this.supportsStates()],
           ["loadHere", () => this.loadState(slot), !metadata || !storage.compatible(metadata, this.current()) || !this.supportsStates()],
           ["downloadBackup", () => this.exportSlot(slot), !metadata],
@@ -165,6 +256,7 @@
         ]) {
           const button = document.createElement("button");
           button.type = "button";
+          button.dataset.saveAction = key;
           button.textContent = t(key);
           button.disabled = this.busy || disabled;
           button.addEventListener("click", () => { button.blur(); this.run(action); });
@@ -214,7 +306,7 @@
       this.busy = true;
       this.setStatus("saveWorking");
       try {
-        this.pendingOperation = Promise.resolve(action());
+        this.pendingOperation = (async () => { await this.nativePending.catch(() => {}); if (!this.closing) return action(); })();
         await this.pendingOperation;
       }
       catch (reason) { this.setError(reason); }
@@ -295,6 +387,7 @@
       if (previous && !await this.ask("confirmOverwrite", { slot })) return;
       if (this.closing) return;
       await this.store.put(this.metadata(slot), data, previous?.revision || previous?.savedAt || null);
+      this.selectSlot(slot);
       await this.refresh();
       this.setStatus("stateSaveDone", { slot });
     }
@@ -309,6 +402,7 @@
       const data = this.emulator.gameManager.getState();
       if (!data?.byteLength) throw new Error("Empty state");
       await this.store.put(this.metadata(slot), data, previous?.revision || previous?.savedAt || null);
+      this.selectSlot(slot);
       await this.refresh();
       this.setStatus("stateSaveDone", { slot });
     }
@@ -320,6 +414,7 @@
       if (!storage.compatible(record.metadata, this.current())) throw Object.assign(new Error("Mismatch"), { name: "SaveStateMismatch" });
       if (!await this.ask("confirmLoadState", { slot })) return;
       if (this.closing) return;
+      this.selectSlot(slot);
       this.emulator.gameManager.loadState(new Uint8Array(await record.data.arrayBuffer()));
       this.setStatus("stateLoadDone", { slot });
     }
@@ -365,6 +460,7 @@
       const metadata = (await this.store.list(this.gameKey)).find(item => item.slot === slot);
       if (!await this.ask("confirmDeleteState", { slot }) || this.closing) return;
       await this.store.remove(this.gameKey, slot, metadata?.revision || metadata?.savedAt || null);
+      try { this.emulator.gameManager.FS.unlink("/" + slot + "-quick.state"); } catch {}
       await this.refresh();
       this.setStatus("stateDeleted", { slot });
     }
@@ -427,6 +523,7 @@
 
     stop() {
       this.closing = true;
+      for (const restore of this.nativeRestorers.reverse()) restore();
       this.answer(false);
       this.pausedByPanel = false;
       this.elements["save-manager-toggle"].hidden = true;

@@ -8,7 +8,7 @@
   const keyFor = (gameKey, slot) => JSON.stringify([gameKey, slot]);
 
   function validateSlot(slot) {
-    if (!Number.isInteger(slot) || slot < 1 || slot > 3) throw error("InvalidSaveSlot");
+    if (!Number.isInteger(slot) || slot < 1 || slot > 9) throw error("InvalidSaveSlot");
   }
 
   function identity(game) {

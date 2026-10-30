@@ -821,6 +821,9 @@ async function saveEnvironment(options = {}) {
     started: true, paused: !!options.paused, ejs_version: options.emulatorVersion || '4.3.0-pre',
     getCore: () => 'fceumm',
     getBaseFileName: () => 'Test Game',
+    settings: { 'save-state-slot': '1' },
+    getSettingValue(key) { return this.settings[key]; },
+    changeSettingOption(key, value) { this.settings[key] = value; },
     elements: { parent: env.document.createElement('div'), menu: env.document.createElement('div') },
     pause() { this.paused = true; calls.pauses += 1; },
     play() { this.paused = false; calls.plays += 1; },
@@ -834,6 +837,12 @@ async function saveEnvironment(options = {}) {
       FS: { syncfs: options.syncfs || ((populate, callback) => callback(null)) }
     }
   };
+  const nativeFiles = new Map();
+  emulator.gameManager.FS.readFile = path => { const data = nativeFiles.get(path); if (!data) throw new Error('Missing native file'); return data.slice(); };
+  emulator.gameManager.FS.writeFile = (path, data) => nativeFiles.set(path, data.slice());
+  emulator.gameManager.FS.unlink = path => nativeFiles.delete(path);
+  emulator.gameManager.quickSave = function(slot) { this.FS.writeFile('/' + slot + '-quick.state', this.getState()); return true; };
+  emulator.gameManager.quickLoad = function(slot) { this.loadState(this.FS.readFile('/' + slot + '-quick.state')); };
   env.window.EJS_emulator = emulator;
   env.window.EJS_onGameStart();
   const manager = vm.runInContext('saveManager', env.context);
@@ -1218,4 +1227,87 @@ test('localized game titles fall back to either title and searches, filter count
   assert.equal(vm.runInContext('getFilteredGames().length', env.context), 1);
   vm.runInContext('state.activeSearch = "missing"; renderGrid()', env.context);
   assert.equal(env.elements.get('stats').textContent, '0 of 4 games (0 B)');
+});
+
+test('library 3DS uses the range adapter and diagnostics follow actual startup methods', async () => {
+  const game = { ...games[0], core: '3ds', rom: 'rom/test/library.3ds', saveName: 'stable-save' };
+  const env = await environment(playerSource, { games: [game], search: '?id=1&threads=1' });
+  let source; const forwarded = [];
+  env.window.RetroLazyRom = { install(emulator, url) { source = url; return { stats: { mode: 'lazy-range', state: 'ready', size: 4294967296 }, stop() {} }; } };
+  const emulator = { initModule(...args) { forwarded.push(args); return 17; }, downloadFiles() { return 18; }, startGame() { return 19; }, download(url, type) { return { url, type }; } };
+  env.window.EJS_emulator = emulator; env.window.EJS_ready();
+  assert.equal(source, env.window.EJS_gameUrl); assert.match(source,/\/data\/roms\//);
+  assert.equal(env.window.EJS_gameName, 'stable-save');
+  const log = () => JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics'));
+  assert.equal(emulator.initModule('wasm'),17);assert.equal(log().phase,'initializing-core');assert.deepEqual(forwarded,[['wasm']]);
+  assert.equal(emulator.downloadFiles(),18);assert.equal(log().phase,'preparing-files');
+  assert.equal(emulator.download(source,{name:'rom'}).url,source);assert.equal(log().phase,'loading-rom');
+  assert.equal(emulator.startGame(),19);assert.equal(log().phase,'starting-game');
+  assert.equal(log().romIO.mode,'lazy-range');
+});
+
+
+test('native quick saves and all nine panel slots share durable data across restart', async () => {
+  const first = await saveEnvironment();
+  assert.equal(first.emulator.gameManager.quickSave('9'), true);
+  await first.manager.nativePending;
+  assert.equal(first.manager.slots[0].slot, 9);
+  const reload = await saveEnvironment({ indexedDB: first.indexedDB });
+  reload.emulator.gameManager.quickLoad('9');
+  await reload.manager.nativePending;
+  assert.deepEqual(reload.calls.loaded, [[1, 2, 1]]);
+  await reload.manager.run(() => reload.manager.saveState(8));
+  assert.equal(reload.emulator.settings['save-state-slot'], '8');
+  reload.emulator.gameManager.quickLoad('8'); await reload.manager.nativePending;
+  assert.deepEqual(reload.calls.loaded.at(-1), [1, 2, 1]);
+  await reload.manager.open();
+  assert.equal(reload.elements.get('save-slots').children.length, 9);
+  reload.manager.selectSlot(7);
+  assert.equal(reload.emulator.getSettingValue('save-state-slot'), '7');
+});
+
+test('native toolbar state actions share slots, and queued snapshots survive rapid saves', async () => {
+  const env = await saveEnvironment();
+  env.manager.selectSlot(4);
+  env.handlers.get('saveState')({ state: new Uint8Array([4, 8]) });
+  env.emulator.gameManager.quickSave('5');
+  env.emulator.gameManager.quickSave('5');
+  await env.manager.nativePending;
+  const toolbarState = await env.manager.store.get(env.manager.gameKey, 4);
+  assert.deepEqual([...new Uint8Array(await toolbarState.data.arrayBuffer())], [4, 8]);
+  env.handlers.get('loadState')(); await env.manager.nativePending;
+  assert.deepEqual(env.calls.loaded, [[4, 8]]);
+  env.emulator.gameManager.quickLoad('5'); await env.manager.nativePending;
+  assert.deepEqual(env.calls.loaded.at(-1), [1, 2, 2]);
+});
+
+test('native slot failures preserve durable saves and incompatible states never load', async () => {
+  const env = await saveEnvironment();
+  env.emulator.gameManager.quickSave(1); await env.manager.nativePending;
+  env.indexedDB.failWrite = true;
+  env.emulator.gameManager.quickSave(1);
+  await assert.rejects(env.manager.nativePending, { name: 'QuotaExceededError' });
+  env.emulator.gameManager.quickLoad(1); await env.manager.nativePending;
+  assert.deepEqual(env.calls.loaded, [[1, 2, 1]]);
+  env.emulator.ejs_version = 'other';
+  env.emulator.gameManager.quickLoad(1);
+  await assert.rejects(env.manager.nativePending, { name: 'SaveStateMismatch' });
+  assert.equal(env.calls.loaded.length, 1);
+  env.emulator.ejs_version = '4.3.0-pre';
+  const deleting = env.manager.run(() => env.manager.deleteSlot(1));
+  await waitFor(() => env.manager.confirmation); env.manager.answer(true); await deleting;
+  env.emulator.gameManager.quickLoad(1); await env.manager.nativePending;
+  assert.equal(env.calls.loaded.length, 1);
+});
+
+test('close waits for queued native state persistence and restores native methods', async () => {
+  const env = await saveEnvironment();
+  const bridged = env.emulator.gameManager.quickSave;
+  env.emulator.gameManager.quickSave(6);
+  await vm.runInContext('shutdownPlayer()', env.context);
+  const saved = await env.manager.store.get(env.manager.gameKey, 6);
+  assert.deepEqual([...new Uint8Array(await saved.data.arrayBuffer())], [1, 2, 1]);
+  assert.notEqual(env.emulator.gameManager.quickSave, bridged);
+  assert.equal(env.window.EJS_emulator, null);
+  assert.throws(() => env.manager.store.get(env.manager.gameKey, 10), { name: 'InvalidSaveSlot' });
 });
