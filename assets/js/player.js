@@ -4,6 +4,8 @@ const I18n = window.RetroI18n;
 const t = (key, values) => I18n.t(key, values);
 const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
 if (["en", "ja"].includes(requestedLanguage)) I18n.setLanguage(requestedLanguage, false);
+const threeDsTest = window.Retro3DSDiagnostics?.configuration(window.location) || null;
+const threeDsMonitor = threeDsTest ? new window.Retro3DSDiagnostics(threeDsTest) : null;
 
 const DEFAULT_EJS_VERSION = "4.3.0-pre";
 const DEFAULT_EJS_DATA_PATH = `https://cdn.emulatorjs.org/${DEFAULT_EJS_VERSION}/data/`;
@@ -168,7 +170,7 @@ function installConsoleDiagnostics() {
 function persistDiagnostics() {
   if (!diagnostics) return;
   try {
-    window.sessionStorage.setItem("retro-vault-diagnostics", JSON.stringify(diagnostics));
+    window.sessionStorage.setItem(threeDsTest ? window.Retro3DSDiagnostics.storageKey : "retro-vault-diagnostics", JSON.stringify(diagnostics));
   } catch {
     // Restricted storage must not prevent a game from running.
   }
@@ -211,6 +213,7 @@ function sampleDiagnostics(phase) {
     diagnostics.fastForward = emulator.isFastForward === true;
     diagnostics.slowMotion = emulator.isSlowMotion === true;
   }
+  threeDsMonitor?.observe(diagnostics, emulator, phase);
   persistDiagnostics();
 }
 
@@ -228,7 +231,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.16.0",
+    appVersion: "2.17.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -251,7 +254,7 @@ function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJ
   };
   sampleDiagnostics();
   installConsoleDiagnostics();
-  diagnosticTimer = setInterval(() => sampleDiagnostics(), 10000);
+  diagnosticTimer = setInterval(() => sampleDiagnostics(), threeDsTest ? 2000 : 10000);
 }
 
 function reportPlayerError(key, values = {}, context = {}) {
@@ -484,13 +487,16 @@ function startEmulator(game, gameUrl, requestedThreads) {
   const dataPath = resolveDataPath(game);
   const loaderVersion = new URL(dataPath).pathname.match(/\/([^/]+)\/data\/$/)?.[1]
     || game.ejsVersion || DEFAULT_EJS_VERSION;
+  if (threeDsTest && (game.core !== '3ds' || !['3ds', 'azahar'].includes(core) || dataPath !== DEFAULT_EJS_DATA_PATH)) {
+    throw new Error('The comparison requires a library 3DS game using the pinned 4.3.0-pre Azahar runtime.');
+  }
   legacyLanguageLoader = /^(?:4\.[0-2](?:\.|$)|stable$)/i.test(loaderVersion);
-  if (typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game, recordActivity);
+  if (!threeDsTest && typeof window.RetroSaveManager === "function") saveManager = new window.RetroSaveManager(game, recordActivity);
 
   // Keep the player configuration intentionally close to the official EmulatorJS demo.
   window.EJS_player = "#game";
   window.EJS_gameID = game.id;
-  window.EJS_gameName = game.saveName || game.title;
+  window.EJS_gameName = threeDsTest ? `Retro Vault 3DS Test ${game.id}` : game.saveName || game.title;
   window.EJS_gameUrl = gameUrl;
   window.EJS_core = core;
   window.EJS_pathtodata = dataPath;
@@ -508,11 +514,15 @@ function startEmulator(game, gameUrl, requestedThreads) {
     "save-state-location": "browser",
     "save-save-interval": "30"
   };
+  if (threeDsTest) {
+    window.EJS_disableLocalStorage = true;
+    Object.assign(window.EJS_defaultOptions, threeDsTest.options);
+  }
   // Production mode enables the core cache and avoids verbose runtime logging.
   window.EJS_DEBUG_XX = false;
 
   configureOptionalOptions(game);
-  clearSavedThreadOverride(game);
+  if (!threeDsTest) clearSavedThreadOverride(game);
   configureDsTouchMode(game, core, loaderVersion);
   beginDiagnostics(game, threads, loaderVersion);
   if (typeof window.RetroResourceDiagnostics === "function") {
@@ -541,6 +551,10 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
+    if (threeDsMonitor) {
+      try { threeDsMonitor.attach(emulator); }
+      catch (error) { reportException(error, 'startError'); return; }
+    }
     if (game.core === '3ds' && ((gameUrl instanceof File && gameUrl.size >= 256 * 1048576) || typeof gameUrl === 'string')) {
       try {
         lazyRom = window.RetroLazyRom.install(emulator, gameUrl, stats => { sampleDiagnostics(); renderRomPreparation(stats); if (stats.state === 'failed') reportPlayerError(stats.errorKey || 'lazyRomReadError'); });

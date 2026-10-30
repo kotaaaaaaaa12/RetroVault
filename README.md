@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.16.0**. Site releases use
+The current Retro Vault release is **2.17.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -767,3 +767,39 @@ offline reads after preparation, server-version refresh, protected active
 deletion, and English/Japanese mobile cache management. The actual pinned
 frontend/core filesystem still receives corrected virtual flags without
 forced verbosity, using synthetic content only.
+
+
+## Private 3DS comparison tests (2.17.0)
+
+Open **Management → 3DS comparison test** (`/admin/3ds-test.html`). Both this
+page and its player document require the existing administrator session. Choose
+an eligible published 3DS game using the pinned 4.3.0-pre runtime. Tests exclude
+custom data paths, BIOS, patches, and parent ROMs to keep comparisons controlled.
+Run Baseline first, finish the test, record what you observed, and then repeat
+with one alternate condition. The baseline fixes native resolution at 1x, no
+texture filtering/custom textures/texture dumps, Old 3DS, hardware shaders enabled,
+and shader cache enabled. Each alternate changes exactly one of the last two
+settings. Hardware shaders OFF may be slower. No normal-player defaults change.
+
+Native settings persistence is disabled. The test redirects only the native
+`/data/saves` IDBFS mount to fresh volatile MEMFS before population. Test saves,
+NAND files, and shader caches never read or write the normal IndexedDB mount.
+No additional Retro Vault save manager is created. All conditions therefore
+start with fresh game data; tests do not reproduce a normal game's saved state.
+Completed ROM downloads keep using the existing OPFS cache independently.
+
+The report keeps up to six runs in a separate localStorage key, with bounded
+stage transitions, two-second samples, WASM region growth, errors, and native
+`get_core_options` readback. Available values are not confused with current
+values. Unknown values remain unavailable. Matching reported core variables
+are not proof of internal GPU state or of successful game execution. Settings
+changed inside the player are recorded, so altered runs can be identified.
+Reports distinguish user-observed outcomes from automatic interruption markers.
+Only samples persisted before process termination can survive. Storage-denied
+errors are visible; download the combined JSON before leaving in that case.
+
+These figures exclude total resident browser and GPU memory. A reload or an
+interrupted report does not establish jetsam, an allocation failure, or a fixed
+crash. The test uses the normal ROM adapter and runtime diagnostics, with an
+isolated report key. It does not profile native allocation call sites; that
+would require a separately instrumented Azahar build.

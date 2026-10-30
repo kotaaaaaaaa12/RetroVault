@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title data-i18n="threeDsTestTitle">3DS comparison test | Retro Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.17.0">
+  <link rel="stylesheet" href="/assets/css/admin.css?v=2.17.0">
+  <link rel="stylesheet" href="/assets/css/3ds-test.css?v=2.17.0">
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.17.0">
+  <script src="/assets/js/i18n.js?v=2.17.0" defer></script>
+  <script src="/assets/js/notices.js?v=2.17.0" defer></script>
+  <script src="/assets/js/3ds-test-support.js?v=2.17.0" defer></script>
+  <script src="/assets/js/3ds-test.js?v=2.17.0" defer></script>
+</head>
+<body>
+<main>
+  <header class="vault-header">
+    <div class="vault-identity"><a class="vault-brand" href="/">RETRO VAULT</a><span class="vault-kicker" data-i18n="threeDsTest">3DS comparison test</span></div>
+    <nav><a href="/admin/" data-i18n="backToAdmin">Back to management</a><label class="language"><span data-i18n="language">Language</span><select id="language-select"><option value="auto" data-i18n="auto">Auto</option><option value="en">English</option><option value="ja">日本語</option></select></label></nav>
+  </header>
+  <section class="panel">
+    <h1 data-i18n="threeDsTest">3DS comparison test</h1>
+    <p class="hint" data-i18n="threeDsHelp">Start with Baseline, then test one other condition using the same game. Tap Start Game inside the player. Finish each test before starting another. Results remain on this device after a reload.</p>
+    <p class="hint" data-i18n="threeDsScope">Memory figures measure the core's WebAssembly region, not actual total RAM or GPU use. An interrupted result does not identify why the page closed. This test does not confirm a crash fix.</p>
+    <p class="hint" data-i18n="threeDsSaves">Tests start with fresh temporary game saves and native settings. They do not load or write your normal game saves. ROM downloads can reuse the device cache. Baseline uses 1x internal resolution; each other condition changes one setting only.</p>
+    <div class="fields">
+      <label><span data-i18n="games">Games</span><select id="three-ds-game" disabled></select></label>
+      <label><span data-i18n="threeDsCondition">Condition</span><select id="three-ds-condition"><option value="baseline" data-i18n="threeDsBaseline">Baseline</option><option value="shader-cache-off" data-i18n="threeDsCacheOff">Shader cache OFF</option><option value="hardware-shaders-off" data-i18n="threeDsShadersOff">Hardware shaders OFF</option></select></label>
+    </div>
+    <p class="hint" data-i18n="threeDsConditionsHelp">Shader cache OFF changes citra_use_hw_shader_cache only. Hardware shaders OFF changes citra_use_hw_shaders only and may be slower. Both comparisons use the same clean baseline, not the preceding test's settings.</p>
+    <div class="actions"><button id="three-ds-start" type="button" data-i18n="play" disabled>PLAY</button><button id="three-ds-stop" type="button" data-i18n="coreTestFinish" hidden>Finish test</button></div>
+    <p id="three-ds-status" class="hint" role="status" aria-live="polite"></p>
+  </section>
+  <section id="three-ds-player-panel" class="panel" hidden><div id="three-ds-frame"></div></section>
+  <section class="panel">
+    <div class="test-results-heading"><h2 data-i18n="threeDsResults">Comparison results</h2><div class="actions"><button id="three-ds-download" type="button" data-i18n="threeDsDownload" disabled>Download all results</button><button id="three-ds-clear" type="button" data-i18n="threeDsClear" disabled>Clear test results</button></div></div>
+    <p class="hint" data-i18n="threeDsResultHelp">Up to six recent tests are kept. After an interruption, select what you observed. Elapsed time is the last recorded time since the frontend start callback; it is not proof that the game displayed or continued running.</p>
+    <div id="three-ds-results"></div>
+  </section>
+</main>
+</body>
+</html>

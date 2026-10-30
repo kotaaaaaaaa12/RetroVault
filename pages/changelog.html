@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.16.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.16.0">
-  <script src="/assets/js/i18n.js?v=2.16.0" defer></script>
-  <script src="/assets/js/changelog.js?v=2.16.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.17.0">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.17.0">
+  <script src="/assets/js/i18n.js?v=2.17.0" defer></script>
+  <script src="/assets/js/changelog.js?v=2.17.0" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-3ds-test">
+      <div class="release-meta"><span>2.17.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-3ds-test" data-i18n="releaseThreeDsTestTitle">3DS startup and memory comparison tests</h2>
+      <ul><li data-i18n="releaseThreeDsTestDetails">Added private 3DS comparisons with isolated temporary saves, startup stages, memory region samples, native core setting readback, observed outcomes, and retained results. This does not establish a cause or fix for the Safari reload.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-rom-cache">
-      <div class="release-meta"><span>2.16.0</span><time datetime="2026-10-30">2026-10-30</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.16.0</span><time datetime="2026-10-30">2026-10-30</time></div>
       <h2 id="release-rom-cache" data-i18n="releaseRomCacheTitle">Reuse device ROM downloads and reduce diagnostic overhead</h2>
       <ul><li data-i18n="releaseRomCacheDetails">Completed Safari 3DS downloads now stay on this device and are reused when the server URL, ETag, size, and cached header agree. Device downloads lists stored copies and supports individual or bulk deletion while protecting files in use. Incomplete copies are not reused. Forced verbose startup logging is removed and production debug lines are counted without repeatedly rebuilding diagnostic logs. This does not establish or confirm a fix for an unrecorded browser-process crash.</li></ul>
     </article>

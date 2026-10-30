@@ -32,7 +32,7 @@ test('the library and player open publicly while management and the comparison t
   const env = environment();
   delete env.ADMIN_PASSWORD;
   for (const path of ['/', '/index.html', '/pages/player.html', '/pages/changelog.html', '/admin/login']) assert.equal((await call(env, path)).status, 200, path);
-  for (const path of ['/admin/', '/admin/index.html', '/admin/core-test.html', '/pages/core-test.html', '/pages/%63ore-test.html']) {
+  for (const path of ['/admin/', '/admin/index.html', '/admin/core-test.html', '/admin/3ds-test.html', '/admin/3ds-player.html', '/pages/core-test.html', '/pages/%63ore-test.html']) {
     const response = await call(env, path);
     assert.equal(response.status, 303, path);
     assert.ok(response.headers.get('Location').includes('/admin/login'));

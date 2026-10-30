@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title data-i18n="playerTitle">Retro Vault Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.17.0">
+  <link rel="stylesheet" href="/assets/css/player.css?v=2.17.0">
+  <script src="/assets/js/i18n.js?v=2.17.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.17.0">
+  <script src="/assets/js/notices.js?v=2.17.0" defer></script>
+  <script src="/assets/js/save-storage.js?v=2.17.0" defer></script>
+  <script src="/assets/js/saves.js?v=2.17.0" defer></script>
+  <script src="/assets/js/runtime-support.js?v=2.17.0" defer></script>
+  <script src="/assets/js/resource-diagnostics.js?v=2.17.0" defer></script>
+  <script src="/assets/js/local-rom.js?v=2.17.0" defer></script>
+  <script src="/assets/js/lazy-rom.js?v=2.17.0" defer></script>
+  <script src="/assets/js/3ds-test-support.js?v=2.17.0" defer></script>
+  <script src="/assets/js/player.js?v=2.17.0" defer></script>
+</head>
+<body>
+  <div id="game"></div>
+  <section id="rom-disk-preparation" class="rv-rom-preparation" hidden aria-labelledby="rom-disk-title">
+    <div class="rv-rom-preparation-panel">
+      <p class="vault-brand">RETRO VAULT</p>
+      <h2 id="rom-disk-title" data-i18n="romDiskPreparing">Preparing ROM on this device</h2>
+      <p data-i18n="romDiskHelp">Keep this page open until the download finishes. The ROM stays on this device for future use.</p>
+      <progress id="rom-disk-meter" max="100" value="0" aria-labelledby="rom-disk-title"></progress>
+      <p id="rom-disk-count" role="status" aria-live="polite"></p>
+      <button id="rom-disk-cancel" type="button" data-i18n="cancel">Cancel</button>
+    </div>
+  </section>
+  <section id="local-preparation" class="rv-upload" hidden>
+    <p id="local-preparation-label" data-i18n="localTrimChecking">Checking ROM padding…</p>
+    <progress id="local-preparation-meter" max="100" value="0" aria-labelledby="local-preparation-label"></progress>
+    <button id="local-preparation-cancel" type="button" data-i18n="cancel">Cancel</button>
+  </section>
+  <div id="player-message" class="hidden" role="status" aria-live="polite"></div>
+  <div id="save-root" class="rv-save-root">
+    <button id="save-manager-toggle" class="ejs_menu_button rv-menu-saves" type="button" data-i18n="localSaves" hidden>Saves</button>
+    <section id="save-manager" class="rv-save-overlay" role="dialog" aria-modal="true" aria-labelledby="save-manager-heading" hidden>
+      <div class="rv-save-panel">
+        <div class="rv-save-brandline"><span class="vault-brand">RETRO VAULT</span></div>
+        <div class="rv-save-header">
+          <div><h2 id="save-manager-heading" tabindex="-1" data-i18n="saveManagerTitle">Saves on this device</h2><p id="save-game-title" class="rv-save-game-title"></p></div>
+          <button id="save-manager-close" type="button" data-i18n="backToGame">Back to game</button>
+        </div>
+        <p class="rv-save-help" data-i18n="saveManagerHelp">Game saves keep the progress recorded in the game's save menu. State slots capture the current moment.</p>
+        <section class="rv-system-save" aria-labelledby="system-save-heading">
+          <h3 id="system-save-heading" data-i18n="systemSaveTitle">Game save</h3>
+          <p id="system-save-status" aria-live="polite"></p>
+          <p class="rv-save-help" data-i18n="systemSaveHelp">Game saves are written to this browser periodically and when you close the player. Use the game's own save menu first.</p>
+          <button id="save-system-now" type="button" data-i18n="saveSystemNow">Write game save now</button>
+        </section>
+        <h3 data-i18n="stateSlotsTitle">State slots</h3>
+        <p id="state-support" class="rv-save-help" data-i18n="saveStatesUnsupported" hidden>This core does not support state slots. Use game saves when the game supports them.</p>
+        <p class="rv-save-help" data-i18n="sharedSlotsHelp">These nine slots are shared with EmulatorJS: 1 saves, 2 loads, and 3 changes the selected slot. Completed saves remain in this browser after restarting.</p>
+        <div id="save-slots" class="rv-save-slots"></div>
+        <div class="rv-save-backups">
+          <button id="save-current-backup" type="button" data-i18n="downloadCurrentState">Download current state</button>
+          <button id="save-legacy-import" type="button" data-i18n="importLegacyState">Import earlier browser state into slot 1</button>
+          <input id="save-import" type="file" accept=".rvstate,.state" aria-label="Choose a state backup" data-i18n-aria-label="chooseStateBackup" hidden>
+          <p class="rv-save-help" data-i18n="systemBackupHelp">Game save file backups are available in the EmulatorJS Import Save File and Export Save File menu.</p>
+        </div>
+        <p id="save-manager-status" class="rv-save-status" role="status" aria-live="polite"></p>
+        <div id="save-confirm" class="rv-save-confirm" role="alertdialog" aria-modal="true" aria-labelledby="save-confirm-text" tabindex="-1" hidden>
+          <div>
+            <p id="save-confirm-text"></p>
+            <button id="save-confirm-no" type="button" data-i18n="cancel">Cancel</button>
+            <button id="save-confirm-yes" type="button" data-i18n="continueAction">Continue</button>
+          </div>
+        </div>
+        <p class="rv-save-help" data-i18n="localSaveNotice">Saves stay in this browser and do not sync between devices. Keep a downloaded backup before clearing site data.</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

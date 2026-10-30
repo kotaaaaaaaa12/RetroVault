@@ -9,6 +9,8 @@ const playerSource = await readFile(new URL('../assets/js/player.js', import.met
 const runtimeSupportSource = await readFile(new URL('../assets/js/runtime-support.js', import.meta.url), 'utf8');
 const resourceDiagnosticsSource = await readFile(new URL('../assets/js/resource-diagnostics.js', import.meta.url), 'utf8');
 const coreTestSource = await readFile(new URL('../assets/js/core-test.js', import.meta.url), 'utf8');
+const threeDsSource = await readFile(new URL('../assets/js/3ds-test-support.js', import.meta.url), 'utf8');
+const threeDsPageSource = await readFile(new URL('../assets/js/3ds-test.js', import.meta.url), 'utf8');
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
 const savesSource = await readFile(new URL('../assets/js/saves.js', import.meta.url), 'utf8');
@@ -49,9 +51,11 @@ class Element {
   replaceChildren(...items) { this.children = items; }
   contains(child) { return this.children.some(item => item === child || item.contains?.(child)); }
   get childNodes() { return this.children; }
+  get options() { return this.children; }
   setAttribute(key, value) { this.attributes.set(key, value); }
   getAttribute(key) { return this.attributes.get(key) ?? null; }
   querySelectorAll() { return []; }
+  querySelector() { return null; }
   focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; }
   blur() { if (this.ownerDocument) this.ownerDocument.activeElement = this.ownerDocument.body; }
   click() { this.dispatch('click'); }
@@ -92,7 +96,7 @@ async function environment(source, options = {}) {
   document.createDocumentFragment = () => new Element();
   document.querySelector = () => options.coreError || null;
   const window = new Element();
-  window.localStorage = storage(options.localStorage);
+  window.localStorage = options.localStorageObject || storage(options.localStorage);
   window.sessionStorage = options.sessionStorage || storage();
   window.crossOriginIsolated = options.isolated !== false;
   window.indexedDB = options.indexedDB;
@@ -100,7 +104,7 @@ async function environment(source, options = {}) {
   if (options.console) window.console = options.console;
   window.SharedArrayBuffer = SharedArrayBuffer;
   window.navigator = { language: options.browserLanguage || 'en-US', languages: [options.browserLanguage || 'en-US'], ...options.navigator };
-  window.location = { origin: 'https://retro.example', search: options.search || '?id=1' };
+  window.location = { origin: 'https://retro.example', search: options.search || '?id=1', pathname: options.pathname || '/pages/player.html' };
   const posts = [];
   window.parent = { postMessage: data => posts.push(data) };
   const observers = [];
@@ -112,8 +116,8 @@ async function environment(source, options = {}) {
     return id;
   };
   const context = vm.createContext({
-    window, document, URL, URLSearchParams, Blob, File, AbortController, TextEncoder, TextDecoder, console: options.console || console,
-    sessionStorage: window.sessionStorage, location: window.location, navigator: window.navigator,
+    window, document, URL, URLSearchParams, Blob, File, AbortController, TextEncoder, TextDecoder, crypto: globalThis.crypto, console: options.console || console,
+    sessionStorage: window.sessionStorage, localStorage: window.localStorage, location: window.location, navigator: window.navigator,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id),
@@ -124,6 +128,7 @@ async function environment(source, options = {}) {
   vm.runInContext(i18nSource, context);
   vm.runInContext(runtimeSupportSource, context);
   vm.runInContext(resourceDiagnosticsSource, context);
+  if (options.loadThreeDsTest) vm.runInContext(threeDsSource, context);
   if (options.loadSaves) {
     vm.runInContext(saveStorageSource, context);
     vm.runInContext(savesSource, context);
@@ -136,6 +141,79 @@ async function environment(source, options = {}) {
 test('launcher has no threading UI and its inline scripts compile', () => {
   assert.doesNotMatch(html, /threads-toggle|threads-status|thread-control|THREADS/);
   for (const [, source] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(source);
+});
+
+test('private 3DS player isolates preferences, save manager, diagnostics and native save storage', async () => {
+  const run = '12345678-1234-1234-1234-123456789012';
+  const original = JSON.stringify({ settings: { citra_resolution_factor: '4', ejs_threads: 'disabled' } });
+  const shared = storage({ 'retro-vault-diagnostics': 'normal diagnostics' });
+  const env = await environment(playerSource, { loadThreeDsTest: true, loadSaves: true,
+    pathname: '/admin/3ds-player.html', search: '?id=1&threads=1&profile=shader-cache-off&run=' + run,
+    games: [{ id: 1, title: '3DS game', saveName: 'Original save', core: '3ds', rom: 'test.3ds' }],
+    localStorage: { 'ejs-1-3ds-Original save-settings': original }, sessionStorage: shared });
+  assert.equal(env.window.EJS_disableLocalStorage, true);
+  assert.equal(env.window.EJS_threads, true);
+  assert.equal(env.window.EJS_defaultOptions.citra_use_hw_shader_cache, 'disabled');
+  assert.equal(env.window.EJS_defaultOptions.citra_use_hw_shaders, 'enabled');
+  assert.equal(env.window.EJS_defaultOptions.citra_resolution_factor, '1');
+  assert.notEqual(env.window.EJS_gameName, 'Original save');
+  assert.equal(env.window.localStorage.getItem('ejs-1-3ds-Original save-settings'), original);
+  assert.equal(shared.getItem('retro-vault-diagnostics'), 'normal diagnostics');
+  const report = JSON.parse(shared.getItem('retro-vault-3ds-player-diagnostics'));
+  assert.equal(report.test3ds.profile, 'shader-cache-off');
+  assert.ok([...env.timers.values()].some(timer => timer.interval && timer.delay === 2000));
+  const IDBFS = {}, MEMFS = {}; let mounted;
+  const FS = { filesystems: { IDBFS, MEMFS }, mount(type) { mounted = type; } };
+  env.window.EJS_emulator = { Module: { FS }, initializeGameManager() { FS.mount(IDBFS, { autoPersist: true }, '/data/saves'); }, getCore: () => 'azahar', ejs_version: '4.3.0-pre', config: {}, download() {}, canvas: new Element() };
+  env.window.RetroLazyRom = { install: () => ({ stats: {} }) };
+  env.window.EJS_ready();
+  await env.window.EJS_emulator.initializeGameManager();
+  assert.equal(mounted, MEMFS);
+  env.window.EJS_emulator.started = true;
+  env.window.EJS_onGameStart();
+  const start = env.posts.find(item => item.type === 'retro-vault-player-start');
+  assert.equal(start.savesAvailable, false);
+  assert.equal(shared.getItem('retro-vault-diagnostics'), 'normal diagnostics');
+});
+
+test('3DS comparison retains interrupted runs, validates frame messages and waits for shutdown before another run', async () => {
+  const store = storage({ 'normal-save': 'preserve' });
+  const catalog = [{ id: 1, title: '3DS game', core: '3ds', rom: 'test.3ds' },
+    { id: 2, title: 'Custom', core: '3ds', rom: 'test.3ds', dataPath: 'https://custom.example/data/' },
+    { id: 3, title: 'NES', core: 'nes', rom: 'test.nes' }];
+  const options = { games: catalog, loadThreeDsTest: true, localStorageObject: store };
+  const env = await environment(threeDsPageSource, options);
+  assert.equal(env.elements.get('three-ds-game').children.length, 1);
+  env.elements.get('three-ds-game').value = '1'; env.elements.get('three-ds-condition').value = 'baseline';
+  env.elements.get('three-ds-start').click();
+  const key = 'retro-vault-3ds-comparison-v1';
+  let run = JSON.parse(store.getItem(key)).runs[0];
+  assert.equal(run.outcome, 'active');
+  const frame = env.elements.get('three-ds-frame').children[0];
+  assert.match(frame.src, /^\/admin\/3ds-player\.html\?/);
+  assert.equal(new URLSearchParams(frame.src.split('?')[1]).get('profile'), 'baseline');
+  const data = { type: 'retro-vault-3ds-diagnostics', runId: run.id, diagnostics: { phase: 'running', peakWasmHeapBytes: 100, test3ds: { runId: run.id } } };
+  env.window.dispatch('message', { origin: env.window.location.origin, source: {}, data });
+  assert.equal(JSON.parse(store.getItem(key)).runs[0].diagnostics, null);
+  env.window.dispatch('message', { origin: 'https://other.example', source: frame.contentWindow, data });
+  assert.equal(JSON.parse(store.getItem(key)).runs[0].diagnostics, null);
+  env.window.dispatch('message', { origin: env.window.location.origin, source: frame.contentWindow, data });
+  assert.equal(JSON.parse(store.getItem(key)).runs[0].diagnostics.peakWasmHeapBytes, 100);
+  const afterReload = await environment(threeDsPageSource, options);
+  assert.equal(JSON.parse(store.getItem(key)).runs[0].outcome, 'interrupted');
+  assert.equal(afterReload.elements.get('three-ds-download').disabled, false);
+  let stop;
+  frame.contentWindow.postMessage = message => { stop = message; };
+  env.elements.get('three-ds-stop').click();
+  assert.equal(env.elements.get('three-ds-start').disabled, true);
+  env.window.dispatch('message', { origin: env.window.location.origin, source: frame.contentWindow, data: { type: 'retro-vault-player-stopped', token: 'wrong' } });
+  assert.equal(env.elements.get('three-ds-start').disabled, true);
+  env.window.dispatch('message', { origin: env.window.location.origin, source: frame.contentWindow, data: { type: 'retro-vault-player-stopped', token: stop.token } });
+  assert.equal(env.elements.get('three-ds-start').disabled, false);
+  run = JSON.parse(store.getItem(key)).runs[0];
+  assert.equal(run.cleanupAcknowledged, true);
+  assert.equal(run.outcome, 'stopped');
+  assert.equal(store.getItem('normal-save'), 'preserve');
 });
 
 test('standalone NES comparison excludes custom loaders and preserves normal diagnostics', async () => {
