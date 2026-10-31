@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.17.2**. Site releases use
+The current Retro Vault release is **2.18.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -862,3 +862,35 @@ This corrects a verified startup configuration bug. It does not establish why
 iPadOS/Safari reloaded the page, prove long-term stability, or improve FPS by
 itself. The normal player's native persistent save mount remains different from
 the comparison test's fresh volatile mount.
+
+
+## Existing native data comparison without writeback (2.18.0)
+
+The submitted 2.17.2 normal-player report confirms native shader-cache OFF and
+matches the core variables from the earlier cache-OFF comparison, yet ends at a
+last frontend elapsed sample of seven seconds before a reported whole-page
+reload. This rules out the earlier missing-default path for that run, but does
+not identify why Safari reloaded. No fatal runtime or ROM I/O failure was recorded.
+The normal canvas was 2192x1130; the earlier comparison canvas was 1070x1146.
+Normal persistent IDBFS and the additional save manager also differ from the
+comparison's temporary MEMFS. These differences are not established causes.
+
+The private 3DS test now defaults to Shader cache OFF and adds **Cache OFF +
+existing saved data (read only)**. Compare those two conditions using the same
+game, page, and device orientation. Core option objects are identical. The new
+condition mounts fresh MEMFS first, then reads the existing `/data/saves`
+IndexedDB database without a version argument, using only readonly FILE_DATA
+cursor transactions. The pinned IDBFS storeLocalEntry helper restores structured
+clones into this test's MEMFS. No persistent IDBFS mount, autoPersist, readwrite
+transaction, put, delete, or save database deletion is used. A missing database's
+creation transaction is aborted; the test fails rather than silently substituting
+empty data. Invalid paths or more than 4096 entries also fail the test. Closing
+cancels any pending read and closes the database connection. Original stored
+records are never changed, including after native gameplay writes or shutdown.
+
+Diagnostics record only snapshot status, file/directory counts, total byte size,
+and largest-file size, not record contents or filenames. The normal player's
+save behavior is unchanged. This comparison isolates loading existing native
+data while suppressing persistent writes; it does not test autoPersist, the
+extra save manager, or the normal launcher's rendering overhead. No crash fix
+or memory-exhaustion diagnosis is claimed.

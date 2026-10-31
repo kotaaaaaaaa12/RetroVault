@@ -6,7 +6,7 @@
   const element = id => document.getElementById('three-ds-' + id);
   const key = 'retro-vault-3ds-comparison-v1';
   const profiles = window.Retro3DSDiagnostics.profiles;
-  const profileKeys = { baseline: 'threeDsBaseline', 'shader-cache-off': 'threeDsCacheOff', 'hardware-shaders-off': 'threeDsShadersOff' };
+  const profileKeys = { baseline: 'threeDsBaseline', 'shader-cache-off': 'threeDsCacheOff', 'hardware-shaders-off': 'threeDsShadersOff', 'saved-data-readonly': 'threeDsSavedData' };
   const outcomes = ['active', 'stopped', 'interrupted', 'error', 'played', 'screen-blank', 'page-reloaded'];
   const outcomeKeys = { active: 'threeDsActive', stopped: 'threeDsStopped', interrupted: 'threeDsInterrupted', error: 'threeDsError', played: 'threeDsPlayed', 'screen-blank': 'threeDsBlank', 'page-reloaded': 'threeDsReloaded' };
   const phaseKeys = { loading: 'threeDsPhaseLoading', 'waiting-for-start': 'threeDsPhaseWaiting', 'loading-core': 'threeDsPhaseCore', 'initializing-core': 'threeDsPhaseInitializing', 'preparing-files': 'threeDsPhaseFiles', 'loading-rom': 'threeDsPhaseRom', 'starting-game': 'threeDsPhaseStarting', running: 'threeDsPhaseRunning', error: 'threeDsError', closing: 'threeDsPhaseClosing', closed: 'threeDsPhaseClosed', background: 'threeDsPhaseBackground' };
@@ -63,6 +63,10 @@
       ];
       for (const [label, value] of details) list.append(node('dt', t(label)), node('dd', value));
       card.append(list);
+      if (info?.savedSnapshot) {
+        const snapshot = info.savedSnapshot;
+        card.append(node('p', t('threeDsSnapshotSummary', { state: t('threeDsSnapshot' + snapshot.state), files: snapshot.files, bytes: bytes(snapshot.bytes) }), 'hint'));
+      }
       if (run.playerError) card.append(node('p', run.playerError.message, 'hint test-mismatch'));
       const label = node('label');
       label.append(node('span', t('threeDsObservation')));
@@ -159,7 +163,7 @@
   });
   element('download').addEventListener('click', () => {
     if (!runs.length) return;
-    const report = { schemaVersion: 1, appVersion: '2.17.2', mode: '3ds-comparison', exportedAt: new Date().toISOString(), memoryScope: 'Core WebAssembly region only; not total resident RAM or GPU use.', runs };
+    const report = { schemaVersion: 1, appVersion: '2.18.0', mode: '3ds-comparison', exportedAt: new Date().toISOString(), memoryScope: 'Core WebAssembly region only; not total resident RAM or GPU use.', runs };
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
     const link = node('a'); link.href = url; link.download = 'retro-vault-3ds-comparison.json'; document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000); element('download').blur();

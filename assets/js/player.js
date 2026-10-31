@@ -233,7 +233,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.17.2",
+    appVersion: "2.18.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -796,6 +796,7 @@ function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
   localPreparationController.abort();
+  threeDsMonitor?.stop();
   restoreThreeDsCoreSettings?.();
   runtimeSupport?.stop();
   const romCleanup = lazyRom?.stop();

@@ -13,7 +13,8 @@
   const profiles = Object.freeze({
     baseline,
     'shader-cache-off': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' }),
-    'hardware-shaders-off': Object.freeze({ ...baseline, citra_use_hw_shaders: 'disabled' })
+    'hardware-shaders-off': Object.freeze({ ...baseline, citra_use_hw_shaders: 'disabled' }),
+    'saved-data-readonly': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' })
   });
 
   class ThreeDSDiagnostics {
@@ -25,7 +26,7 @@
       const profile = params.get('profile');
       const runId = params.get('run');
       if (!Object.hasOwn(profiles, profile) || !/^[a-f0-9-]{36}$/.test(runId || '')) throw new Error('Invalid 3DS test condition.');
-      return { profile, runId, options: { ...profiles[profile] } };
+      return { profile, runId, options: { ...profiles[profile] }, savedData: profile === 'saved-data-readonly' };
     }
     static parseOptions(value) {
       const result = {};
@@ -44,6 +45,7 @@
       this.state = { profile: config.profile, runId: config.runId, requestedOptions: config.options,
         actualOptions: {}, optionSource: 'unavailable', stages: [], samples: [], settingsChanges: [],
         saveStorage: 'not-mounted', settingsStorage: 'disabled', changedFromBaseline: Object.keys(baseline).filter(key => config.options[key] !== baseline[key]) };
+      if (config.savedData) this.state.savedSnapshot = { state: 'pending', files: 0, directories: 0, bytes: 0, largestFile: 0 };
       this.lastSent = 0;
       this.lastOptions = 0;
       this.lastSample = 0;
@@ -72,9 +74,92 @@
         try {
           const result = await Reflect.apply(original, this, args);
           if (monitor.state.saveStorage !== 'volatile-memory') throw new Error('Test save isolation was not applied.');
+          if (monitor.config.savedData) {
+            await monitor.loadSavedSnapshot(fs, fs.filesystems.IDBFS);
+            monitor.state.saveStorage = 'readonly-snapshot-in-memory';
+          }
           return result;
         } finally { fs.mount = mount; }
       };
+    }
+    loadSavedSnapshot(fs, idbfs) {
+      const stats = this.state.savedSnapshot;
+      stats.state = 'reading';
+      return new Promise((resolve, reject) => {
+        let db, transaction, failure, settled = false, cursorFinished = false, count = 0;
+        const finish = error => {
+          if (settled) return;
+          settled = true;
+          this.cancelSnapshot = null;
+          try { db?.close(); } catch {}
+          stats.state = error ? (this.stopped ? 'cancelled' : 'failed') : 'ready';
+          if (error) reject(Object.assign(error, { i18nKey: 'threeDsSavedDataUnavailable' })); else resolve();
+        };
+        const abort = error => {
+          failure = error;
+          try { transaction?.abort(); } catch {}
+          finish(error);
+        };
+        this.cancelSnapshot = () => abort(new Error('Saved-data preparation was cancelled.'));
+        if (!window.indexedDB || typeof idbfs?.storeLocalEntry !== 'function') { finish(new Error('Read-only saved-data access is unavailable.')); return; }
+        let open;
+        // No version argument: never upgrade an existing native save database.
+        try { open = window.indexedDB.open('/data/saves'); }
+        catch (error) { finish(error); return; }
+        open.onupgradeneeded = () => {
+          // Opening a missing database would create it. Abort creation instead.
+          try { open.transaction.abort(); } catch {}
+          try { open.result?.close(); } catch {}
+          finish(new Error('There is no existing native save database.'));
+        };
+        open.onerror = () => finish(open.error || new Error('The existing save database could not be opened.'));
+        open.onblocked = () => finish(new Error('The existing save database is busy.'));
+        open.onsuccess = () => {
+          db = open.result;
+          if (settled || this.stopped) { try { db.close(); } catch {} if (!settled) finish(new Error('Saved-data preparation was cancelled.')); return; }
+          try {
+            // Read one record at a time. No readwrite transaction, getAll,
+            // put, delete, database deletion, or persistent IDBFS mount.
+            transaction = db.transaction(['FILE_DATA'], 'readonly');
+            transaction.onabort = () => finish(failure || transaction.error || new Error('Saved-data reading was aborted.'));
+            transaction.onerror = () => { failure ||= transaction.error || new Error('Saved-data reading failed.'); };
+            transaction.oncomplete = () => finish(cursorFinished ? null : failure || new Error('Saved-data reading did not finish.'));
+            const request = transaction.objectStore('FILE_DATA').openCursor();
+            request.onerror = () => abort(request.error || new Error('Saved-data reading failed.'));
+            request.onsuccess = () => {
+              const cursor = request.result;
+              if (!cursor) { cursorFinished = true; return; }
+              if (this.stopped) { abort(new Error('Saved-data preparation was cancelled.')); return; }
+              const path = cursor.primaryKey;
+              const entry = cursor.value;
+              if (++count > 4096 || typeof path !== 'string' || !path.startsWith('/data/saves/')
+                || path.includes('\0') || path.split('/').some(part => part === '..' || part === '.')
+                || !entry || !Number.isInteger(entry.mode)) { abort(new Error('The native save snapshot is unsupported.')); return; }
+              const file = fs.isFile(entry.mode), directory = fs.isDir(entry.mode);
+              if (!file && !directory) { abort(new Error('The native save snapshot contains an unsupported entry.')); return; }
+              const bytes = file ? entry.contents?.byteLength : 0;
+              if (!Number.isSafeInteger(bytes) || bytes < 0) { abort(new Error('The native save snapshot contains an invalid file.')); return; }
+              try {
+                // The pinned helper writes into this test's MEMFS only. Cursor
+                // values are IndexedDB structured clones, not live save objects.
+                idbfs.storeLocalEntry(path, entry, error => {
+                  if (settled) return;
+                  if (error) { abort(error); return; }
+                  stats.files += file ? 1 : 0;
+                  stats.directories += directory ? 1 : 0;
+                  stats.bytes += bytes;
+                  stats.largestFile = Math.max(stats.largestFile, bytes);
+                  cursor.continue();
+                });
+              } catch (error) { abort(error); }
+            };
+          } catch (error) { abort(error); }
+        };
+      });
+    }
+    stop() {
+      this.stopped = true;
+      this.cancelSnapshot?.();
     }
     observe(diagnostics, emulator, phase) {
       const now = Date.now();

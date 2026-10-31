@@ -13,7 +13,7 @@ function setup() {
   const API = window.Retro3DSDiagnostics;
   const runId = '12345678-1234-1234-1234-123456789012';
   const config = profile => API.configuration({ pathname: '/admin/3ds-player.html', search: '?profile=' + profile + '&run=' + runId });
-  return { API, config, messages, advance: ms => { now += ms; } };
+  return { API, config, messages, window, advance: ms => { now += ms; } };
 }
 
 test('3DS test conditions are private-path scoped and alternate exactly one baseline value', () => {
@@ -25,6 +25,94 @@ test('3DS test conditions are private-path scoped and alternate exactly one base
   for (const [profile, key] of [['shader-cache-off', 'citra_use_hw_shader_cache'], ['hardware-shaders-off', 'citra_use_hw_shaders']]) {
     const alternate = config(profile).options;
     assert.deepEqual(Object.keys(base).filter(key => base[key] !== alternate[key]), [key]);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(config('saved-data-readonly').options)), JSON.parse(JSON.stringify(config('shader-cache-off').options)));
+  assert.equal(config('saved-data-readonly').savedData, true);
+});
+
+function snapshotDatabase(records, { missing = false } = {}) {
+  const state = { transactions: [], closes: 0, abortedCreation: false };
+  return { state, open(name, version) {
+    assert.equal(name, '/data/saves'); assert.equal(version, undefined);
+    const request = {};
+    setImmediate(() => {
+      if (missing) {
+        request.transaction = { abort() { state.abortedCreation = true; } };
+        request.onupgradeneeded(); return;
+      }
+      request.result = { close() { state.closes++; }, transaction(stores, mode) {
+        state.transactions.push(mode); assert.equal(mode, 'readonly'); assert.deepEqual(Array.from(stores), ['FILE_DATA']);
+        let index = 0, aborted = false;
+        const tx = { abort() { aborted = true; setImmediate(() => tx.onabort?.()); }, objectStore(name) {
+          assert.equal(name, 'FILE_DATA'); return { openCursor() {
+            const cursorRequest = {};
+            const next = () => setImmediate(() => {
+              if (aborted) return;
+              const record = records[index++];
+              cursorRequest.result = record ? { primaryKey: record[0], value: structuredClone(record[1]), continue: next } : null;
+              cursorRequest.onsuccess();
+              if (!record) setImmediate(() => { if (!aborted) tx.oncomplete?.(); });
+            }); next(); return cursorRequest;
+          } };
+        } }; return tx;
+      } };
+      request.onsuccess();
+    }); return request;
+  } };
+}
+
+test('saved-data comparison populates MEMFS through readonly cursors without changing existing records', async () => {
+  const { API, config, window } = setup();
+  const monitor = new API(config('saved-data-readonly'));
+  const records = [['/data/saves/Azahar', { mode: 16877 }], ['/data/saves/Azahar/game.sav', { mode: 33188, contents: new Uint8Array([1, 2, 3]) }]];
+  const database = snapshotDatabase(records); window.indexedDB = database;
+  const local = new Map();
+  const fs = { isFile: mode => mode === 33188, isDir: mode => mode === 16877 };
+  await monitor.loadSavedSnapshot(fs, { storeLocalEntry(path, entry, callback) { local.set(path, entry); callback(null); } });
+  assert.deepEqual(database.state.transactions, ['readonly']);
+  assert.equal(database.state.closes, 1);
+  assert.equal(monitor.state.savedSnapshot.state, 'ready');
+  assert.equal(monitor.state.savedSnapshot.files, 1);
+  assert.equal(monitor.state.savedSnapshot.directories, 1);
+  assert.equal(monitor.state.savedSnapshot.bytes, 3);
+  local.get('/data/saves/Azahar/game.sav').contents[0] = 99;
+  assert.equal(records[1][1].contents[0], 1);
+  assert.doesNotMatch(JSON.stringify(monitor.state.savedSnapshot), /game\.sav|Azahar/);
+});
+
+test('saved-data condition finishes readonly population before native initialization resolves and keeps the save mount volatile', async () => {
+  const { API, config, window } = setup();
+  const monitor = new API(config('saved-data-readonly'));
+  const database = snapshotDatabase([['/data/saves/game.sav', { mode: 33188, contents: new Uint8Array([7]) }]]);
+  window.indexedDB = database;
+  const mounted = [], loaded = [];
+  const IDBFS = { storeLocalEntry(path, entry, callback) { loaded.push(path); callback(null); } }, MEMFS = {};
+  const FS = { filesystems: { IDBFS, MEMFS }, mount(type, options, path) { mounted.push({ type, options, path }); }, isFile: () => true, isDir: () => false };
+  const emulator = { Module: { FS }, async initializeGameManager() { FS.mount(IDBFS, { autoPersist: true }, '/data/saves'); assert.equal(loaded.length, 0); return 'ready'; } };
+  monitor.attach(emulator);
+  assert.equal(await emulator.initializeGameManager(), 'ready');
+  assert.equal(loaded.length, 1);
+  assert.equal(mounted[0].type, MEMFS);
+  assert.equal(mounted[0].options.autoPersist, undefined);
+  assert.equal(monitor.state.saveStorage, 'readonly-snapshot-in-memory');
+  assert.equal(monitor.state.savedSnapshot.state, 'ready');
+  assert.deepEqual(database.state.transactions, ['readonly']);
+});
+
+test('missing, invalid and cancelled saved-data snapshots fail closed without creating or writing a database', async () => {
+  for (const mode of ['missing', 'invalid', 'cancelled']) {
+    const { API, config, window } = setup();
+    const monitor = new API(config('saved-data-readonly'));
+    const records = [[mode === 'invalid' ? '/outside/game.sav' : '/data/saves/game.sav', { mode: 33188, contents: new Uint8Array([1]) }]];
+    const database = snapshotDatabase(records, { missing: mode === 'missing' }); window.indexedDB = database;
+    const promise = monitor.loadSavedSnapshot({ isFile: () => true, isDir: () => false }, { storeLocalEntry(path, entry, callback) {
+      if (mode === 'cancelled') monitor.stop();
+      callback(null);
+    } });
+    await assert.rejects(promise, error => error.i18nKey === 'threeDsSavedDataUnavailable');
+    if (mode === 'missing') assert.equal(database.state.abortedCreation, true);
+    else assert.deepEqual(database.state.transactions, ['readonly']);
+    assert.equal(monitor.state.savedSnapshot.state, mode === 'cancelled' ? 'cancelled' : 'failed');
   }
 });
 
