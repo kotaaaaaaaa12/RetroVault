@@ -228,11 +228,13 @@
       const host = emulator.elements?.parent;
       const core = emulator.getCore?.();
       if (emulator.ejs_version === '4.3.0-pre' && core === 'azahar') this.traceCore(emulator);
-      if (emulator.ejs_version === '4.3.0-pre' && ['nds', 'melonds', 'desmume', 'desmume2015'].includes(core) && host?.classList && !this.dsTouchHost) {
-        const alreadyEnabled = host.classList.contains('rv-ds-touch');
-        host.classList.add('rv-ds-touch');
-        this.dsTouchHost = host;
-        this.restorers.push(() => { if (!alreadyEnabled) host.classList.remove('rv-ds-touch'); this.dsTouchHost = null; });
+      const touchClass = core === 'azahar' ? 'rv-3ds-touch' : ['nds', 'melonds', 'desmume', 'desmume2015'].includes(core) ? 'rv-ds-touch' : null;
+      const touchHostKey = core === 'azahar' ? 'threeDsTouchHost' : 'dsTouchHost';
+      if (emulator.ejs_version === '4.3.0-pre' && touchClass && host?.classList && !this[touchHostKey]) {
+        const alreadyEnabled = host.classList.contains(touchClass);
+        host.classList.add(touchClass);
+        this[touchHostKey] = host;
+        this.restorers.push(() => { if (!alreadyEnabled) host.classList.remove(touchClass); this[touchHostKey] = null; });
       }
       if (emulator.isSafari && emulator.isMobile && emulator.ejs_version === "4.3.0-pre") {
         this.replace(emulator, "checkStarted", () => () => {
@@ -256,6 +258,7 @@
     snapshot() {
       const result = { ...this.input, audioCheck: this.audioCheck };
       if (this.dsTouchHost) result.dsTouchRouting = "canvas-and-controls";
+      if (this.threeDsTouchHost) result.threeDsTouchRouting = "canvas-and-controls";
       try {
         if (['nds', 'melonds'].includes(this.emulator?.getCore?.())) {
           const mode = this.emulator.getSettingValue?.('melonds_touch_mode') || this.emulator.settings?.melonds_touch_mode;

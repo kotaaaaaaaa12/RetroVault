@@ -44,6 +44,7 @@ let restoreAudioContextTracking = null;
 let legacyLanguageLoader = false;
 let runtimeSupport = null;
 let threeDsStartupPolicy = null;
+let threeDsTouchPolicy = null;
 let restoreThreeDsCoreSettings = null;
 const ownedAudioContexts = new Set();
 
@@ -233,7 +234,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.19.0",
+    appVersion: "2.19.1",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -252,6 +253,7 @@ function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJ
     runtimeLog: [],
     localPreparation,
     ...(threeDsStartupPolicy ? { threeDsStartupPolicy } : {}),
+    ...(threeDsTouchPolicy ? { threeDsTouchPolicy } : {}),
     startMode: "tap-in-player",
     memoryScope: "Core WebAssembly linear memory only; excludes browser, JavaScript, audio, and GPU memory."
   };
@@ -351,8 +353,8 @@ function configureSafari3dsCache(game, core, dataPath) {
   }
 }
 
-function installSafari3dsCoreSettings(emulator) {
-  if (!threeDsStartupPolicy || typeof emulator?.getCoreSettings !== 'function' || restoreThreeDsCoreSettings) return;
+function install3dsCoreSettings(emulator) {
+  if ((!threeDsStartupPolicy && !threeDsTouchPolicy) || typeof emulator?.getCoreSettings !== 'function' || restoreThreeDsCoreSettings) return;
   const original = emulator.getCoreSettings;
   const wrapped = function(...args) {
     let text = Reflect.apply(original, this, args);
@@ -360,12 +362,22 @@ function installSafari3dsCoreSettings(emulator) {
     // In 4.3.0-pre, getCoreSettings returns an empty string when no saved
     // settings record exists, even if defaultOptions is configured. Supply
     // this scoped default at the actual native configuration-file boundary.
-    let match = /^\s*citra_use_hw_shader_cache\s*=\s*(?:"([^"]*)"|([^\s#]+))/m.exec(text);
-    if (!match) {
-      text += (text && !text.endsWith('\n') ? '\n' : '') + 'citra_use_hw_shader_cache = "disabled"\n';
-      match = [null, 'disabled'];
+    if (threeDsStartupPolicy) {
+      let match = /^\s*citra_use_hw_shader_cache\s*=\s*(?:"([^"]*)"|([^\s#]+))/m.exec(text);
+      if (!match) {
+        text += (text && !text.endsWith('\n') ? '\n' : '') + 'citra_use_hw_shader_cache = "disabled"\n';
+        match = [null, 'disabled'];
+      }
+      threeDsStartupPolicy.coreSettingsFile = { source: 'native-startup-config', shaderCacheValue: match[1] ?? match[2] };
     }
-    threeDsStartupPolicy.coreSettingsFile = { source: 'native-startup-config', shaderCacheValue: match[1] ?? match[2] };
+    if (threeDsTouchPolicy) {
+      let match = /^\s*citra_touch_touchscreen\s*=\s*(?:"([^"]*)"|([^\s#]+))/m.exec(text);
+      if (!match) {
+        text += (text && !text.endsWith('\n') ? '\n' : '') + 'citra_touch_touchscreen = "enabled"\n';
+        match = [null, 'enabled'];
+      }
+      threeDsTouchPolicy.coreSettingsFile = { source: 'native-startup-config', touchValue: match[1] ?? match[2] };
+    }
     return text;
   };
   emulator.getCoreSettings = wrapped;
@@ -373,6 +385,36 @@ function installSafari3dsCoreSettings(emulator) {
     if (emulator.getCoreSettings === wrapped) emulator.getCoreSettings = original;
     restoreThreeDsCoreSettings = null;
   };
+}
+
+function configure3dsTouch(game, core, dataPath) {
+  if (!['3ds', 'azahar'].includes(core) || dataPath !== DEFAULT_EJS_DATA_PATH) return;
+  // The core reads absolute pointer positions using its own framebuffer layout.
+  // Finger pressure is a separate native option from mouse clicks.
+  window.EJS_defaultOptions.citra_touch_touchscreen = 'enabled';
+  threeDsTouchPolicy = { requestedDefault: 'enabled', savedPreferenceMigration: threeDsTest ? 'test-isolated' : 'pending' };
+  if (threeDsTest) return;
+  try {
+    const storage = window.localStorage;
+    const saveName = game.saveName || game.title;
+    const migrationKey = 'retro-vault-3ds-touch-v1:' + JSON.stringify([game.id, saveName]);
+    if (storage.getItem(migrationKey) === '1') { threeDsTouchPolicy.savedPreferenceMigration = 'already-applied'; return; }
+    for (const system of ['3ds', 'azahar']) {
+      const key = `ejs-${game.id}-${system}-${saveName}-settings`;
+      const raw = storage.getItem(key);
+      if (!raw) continue;
+      let saved;
+      try { saved = JSON.parse(raw); } catch { continue; }
+      if (!saved?.settings || typeof saved.settings !== 'object' || Array.isArray(saved.settings)) continue;
+      if ([undefined, 'disabled'].includes(saved.settings.citra_touch_touchscreen)) {
+        saved.settings.citra_touch_touchscreen = 'enabled';
+        storage.setItem(key, JSON.stringify(saved));
+      }
+    }
+    // Migrate the old default once; preserve later explicit native choices.
+    storage.setItem(migrationKey, '1');
+    threeDsTouchPolicy.savedPreferenceMigration = 'applied';
+  } catch { threeDsTouchPolicy.savedPreferenceMigration = 'unavailable'; }
 }
 
 function configureDsTouchMode(game, core, loaderVersion) {
@@ -586,6 +628,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   if (!threeDsTest) clearSavedThreadOverride(game);
   configureSafari3dsCache(game, core, dataPath);
   configureDsTouchMode(game, core, loaderVersion);
+  configure3dsTouch(game, core, dataPath);
   beginDiagnostics(game, threads, loaderVersion);
   if (typeof window.RetroResourceDiagnostics === "function") {
     resourceDiagnostics = new window.RetroResourceDiagnostics({
@@ -613,7 +656,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
-    installSafari3dsCoreSettings(emulator);
+    install3dsCoreSettings(emulator);
     if (threeDsMonitor) {
       threeDsMonitor.onChange = () => sampleDiagnostics();
       try { threeDsMonitor.attach(emulator); }

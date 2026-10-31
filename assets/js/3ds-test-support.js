@@ -8,7 +8,8 @@
     citra_dump_textures: 'disabled',
     citra_use_hw_shader_cache: 'enabled',
     citra_use_hw_shaders: 'enabled',
-    citra_is_new_3ds: 'Old 3DS'
+    citra_is_new_3ds: 'Old 3DS',
+    citra_touch_touchscreen: 'enabled'
   });
   const profiles = Object.freeze({
     baseline,

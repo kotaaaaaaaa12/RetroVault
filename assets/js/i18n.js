@@ -144,6 +144,8 @@
     "threeDsWorkerCleanup_termination-requested": "Termination requested; memory release unverified",
     "threeDsWorkerCleanup_request-failed": "A termination request failed",
     "threeDsWorkerCleanup_no-workers": "No Workers were created",
+    "releaseThreeDsTouchTitle": "Enable native 3DS touchscreen input",
+    "releaseThreeDsTouchDetails": "Enabled native finger touchscreen support for pinned Azahar games and comparison tests. Applied the DS canvas input routing to 3DS while retaining virtual controls. Migrated the previous disabled preference once and supplied the default to native startup even without saved settings. Saves, Worker pool sizes, and performance settings are unchanged.",
     "releaseWorkerPoolTitle": "Compare the initial 3DS Worker pool",
     "releaseWorkerPoolDetails": "Added a private comparison with 4 initial pthread Workers against the existing 32-Worker condition, keeping core options and read-only saved data identical. Records native pool counts, Worker events and termination requests. Normal gameplay is unchanged; crash causes and FPS improvements remain unverified.",
     "threeDsHelp": "Compare existing saved data with 4 initial Workers against the same condition with 32 initial Workers, using the same game, page, orientation, and in-game actions. Tap Start Game inside the player. Finish each test before starting another. Download all results after the comparison.",
@@ -646,6 +648,8 @@
     "threeDsWorkerCleanup_termination-requested": "停止要求済み・メモリ回収は未確認",
     "threeDsWorkerCleanup_request-failed": "停止要求の失敗あり",
     "threeDsWorkerCleanup_no-workers": "Worker作成なし",
+    "releaseThreeDsTouchTitle": "3DSの下画面タッチ入力を有効化",
+    "releaseThreeDsTouchDetails": "固定バージョンのAzaharと比較テストで指タッチを有効にしました。DSと同じ画面入力の振り分けを3DSにも適用し、仮想ボタンの操作を維持しました。以前の無効設定を一度だけ移行し、設定未保存時もネイティブ起動に反映します。セーブ、Worker数、速度に関する設定は変更しません。",
     "releaseWorkerPoolTitle": "3DSの初期待機Worker数を比較",
     "releaseWorkerPoolDetails": "管理画面の比較テストに、既存セーブ読込の条件を維持した待機Worker4と32の比較を追加しました。実際のスレッドプール数、Workerの作成と停止要求を記録します。通常プレイの動作は変更せず、再読み込みの原因やFPS改善は未確認です。",
     "threeDsHelp": "同じゲーム・画面・端末の向き・ゲーム内操作で、既存セーブ読込の「待機Worker4」と「待機Worker32」を比較してください。プレイヤー内の「ゲーム開始」を押します。各テストを終了してから次を開始し、比較後に結果をまとめてダウンロードしてください。",
@@ -1011,6 +1015,16 @@
   }
 };
   const nativeEn = {
+  "Touch Device Support": "Touch Device Support",
+  "Touch Support": "Touch Support",
+  "Enable touch device input for touchscreen interactions.": "Enable touch device input for touchscreen interactions.",
+  "Mouse Touchscreen Support": "Mouse Touchscreen Support",
+  "Mouse Touchscreen": "Mouse Touchscreen",
+  "Enable mouse input for touchscreen interactions.": "Enable mouse input for touchscreen interactions.",
+  "Show Touch Interactions": "Show Touch Interactions",
+  "Show Touch": "Show Touch",
+  "Visually indicate touchscreen interactions on screen.": "Visually indicate touchscreen interactions on screen.",
+
   "0": "0",
   "1": "1",
   "2": "2",
@@ -1803,6 +1817,16 @@
   "Port": "Port"
 };
   const nativeJa = {
+  "Touch Device Support": "タッチデバイス対応",
+  "Touch Support": "指タッチ",
+  "Enable touch device input for touchscreen interactions.": "指やタッチペンでタッチスクリーンを操作できるようにします。",
+  "Mouse Touchscreen Support": "マウスでのタッチスクリーン操作",
+  "Mouse Touchscreen": "マウスでのタッチ操作",
+  "Enable mouse input for touchscreen interactions.": "マウスでタッチスクリーンを操作できるようにします。",
+  "Show Touch Interactions": "タッチ位置を表示",
+  "Show Touch": "タッチ位置の表示",
+  "Visually indicate touchscreen interactions on screen.": "タッチしている位置を画面に表示します。",
+
   "0": "0",
   "1": "1",
   "2": "2",

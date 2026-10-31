@@ -255,18 +255,18 @@ html:lang(ja) .rv-save-root { font-family: system-ui, -apple-system, "Hiragino K
 
 #save-root .rv-save-selected { border-color: var(--accent, #00aaff); }
 
-/* The pinned frontend disables canvas hit testing on touch devices. DS needs it
-   for the stylus; keep only actual virtual controls above the canvas interactive. */
-.rv-ds-touch canvas.ejs_canvas { pointer-events: auto !important; touch-action: none; }
-.rv-ds-touch .ejs_virtualGamepad_parent,
-.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_top,
-.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_bottom,
-.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_left,
-.rv-ds-touch .ejs_virtualGamepad_parent .ejs_virtualGamepad_right { pointer-events: none !important; }
-.rv-ds-touch .ejs_virtualGamepad_button,
-.rv-ds-touch .ejs_dpad_main,
-.rv-ds-touch .ejs_virtualGamepad_open,
-.rv-ds-touch .ejs_virtualGamepad_top > *,
-.rv-ds-touch .ejs_virtualGamepad_bottom > *,
-.rv-ds-touch .ejs_virtualGamepad_left > *,
-.rv-ds-touch .ejs_virtualGamepad_right > * { pointer-events: auto !important; }
+/* DS and 3DS need native canvas hit testing for the stylus. Only actual
+   virtual controls above the canvas should intercept pointer input. */
+:is(.rv-ds-touch, .rv-3ds-touch) canvas.ejs_canvas { pointer-events: auto !important; touch-action: none; }
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_parent,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_parent .ejs_virtualGamepad_top,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_parent .ejs_virtualGamepad_bottom,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_parent .ejs_virtualGamepad_left,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_parent .ejs_virtualGamepad_right { pointer-events: none !important; }
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_button,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_dpad_main,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_open,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_top > *,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_bottom > *,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_left > *,
+:is(.rv-ds-touch, .rv-3ds-touch) .ejs_virtualGamepad_right > * { pointer-events: auto !important; }

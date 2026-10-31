@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.19.0**. Site releases use
+The current Retro Vault release is **2.19.1**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -915,3 +915,22 @@ timestamps, and explicit termination requests after normal shutdown preparation.
 Worker.terminate has no completion signal: zero handles and a successful request
 do not prove resident memory was reclaimed. Interrupted or killed pages may not
 complete cleanup. These results do not establish a crash cause or FPS fix.
+
+
+## Native 3DS touchscreen input (2.19.1)
+
+Pinned 4.3.0-pre Azahar games and all 3DS comparison conditions enable
+`citra_touch_touchscreen`. The canvas uses the same scoped input routing as DS:
+transparent gamepad layout regions pass input through, while actual virtual
+controls remain interactive. The native core maps absolute pointer coordinates
+using its framebuffer layout; no fixed lower-screen rectangle or synthetic
+mouse events are introduced. Diagnostics record canvas input counts and
+`threeDsTouchRouting`, as well as the native startup touch setting.
+
+For normal games, a one-time migration changes the previous disabled touch
+preference to enabled, preserving mouse settings, controls, cheats, and all save
+data. Later explicit native choices remain unchanged. The enabled fallback is
+also supplied at the native settings-file boundary when there is no stored
+settings record. Comparison tests still disable preference persistence and use
+temporary save storage. Worker pool sizes and performance settings are unchanged.
+Safari device interaction remains to be verified; this is not an FPS fix.

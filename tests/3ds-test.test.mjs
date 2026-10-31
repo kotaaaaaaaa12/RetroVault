@@ -24,6 +24,7 @@ test('3DS test conditions are private-path scoped and alternate exactly one base
   assert.throws(() => API.configuration({ pathname: '/admin/3ds-player.html', search: '?profile=constructor&run=x' }));
   const base = config('baseline').options;
   assert.equal(base.citra_resolution_factor, '1');
+  assert.equal(base.citra_touch_touchscreen, 'enabled');
   for (const [profile, key] of [['shader-cache-off', 'citra_use_hw_shader_cache'], ['hardware-shaders-off', 'citra_use_hw_shaders']]) {
     const alternate = config(profile).options;
     assert.deepEqual(Object.keys(base).filter(key => base[key] !== alternate[key]), [key]);

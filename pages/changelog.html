@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.19.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.19.0">
-  <script src="/assets/js/i18n.js?v=2.19.0" defer></script>
-  <script src="/assets/js/changelog.js?v=2.19.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.19.1">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.19.1">
+  <script src="/assets/js/i18n.js?v=2.19.1" defer></script>
+  <script src="/assets/js/changelog.js?v=2.19.1" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-3ds-touch">
+      <div class="release-meta"><span>2.19.1</span><time datetime="2026-10-31">2026-10-31</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-3ds-touch" data-i18n="releaseThreeDsTouchTitle">Enable native 3DS touchscreen input</h2>
+      <ul><li data-i18n="releaseThreeDsTouchDetails">Enabled native finger touchscreen support for pinned Azahar games and comparison tests. Applied the DS canvas input routing to 3DS while retaining virtual controls. Migrated the previous disabled preference once and supplied the default to native startup even without saved settings. Saves, Worker pool sizes, and performance settings are unchanged.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-worker-pool">
-      <div class="release-meta"><span>2.19.0</span><time datetime="2026-10-31">2026-10-31</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.19.0</span><time datetime="2026-10-31">2026-10-31</time></div>
       <h2 id="release-worker-pool" data-i18n="releaseWorkerPoolTitle">Compare the initial 3DS Worker pool</h2>
       <ul><li data-i18n="releaseWorkerPoolDetails">Added a private comparison with 4 initial pthread Workers against the existing 32-Worker condition, keeping core options and read-only saved data identical. Records native pool counts, Worker events and termination requests. Normal gameplay is unchanged; crash causes and FPS improvements remain unverified.</li></ul>
     </article>

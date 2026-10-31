@@ -256,7 +256,7 @@ test('Safari 3DS writes cache OFF at the native config boundary with no saved re
   env.window.EJS_emulator = emulator;
   env.window.RetroLazyRom = { install: () => ({ stats: {}, stop: () => Promise.resolve() }) };
   env.window.EJS_ready();
-  assert.equal(emulator.getCoreSettings(123), 'citra_use_hw_shader_cache = "disabled"\n');
+  assert.equal(emulator.getCoreSettings(123), 'citra_use_hw_shader_cache = "disabled"\ncitra_touch_touchscreen = "enabled"\n');
   const policy = vm.runInContext('threeDsStartupPolicy', env.context);
   assert.equal(policy.coreSettingsFile.shaderCacheValue, 'disabled');
   emulator.started = true;
@@ -272,8 +272,8 @@ test('Safari 3DS writes cache OFF at the native config boundary with no saved re
   assert.equal(JSON.parse(store.getItem(key)).settings.citra_use_hw_shader_cache, 'disabled');
   const native = { getCoreSettings: () => 'citra_use_hw_shader_cache = "enabled"\ncitra_resolution_factor = 2\n' };
   repaired.window.EJS_emulator = native;
-  vm.runInContext('installSafari3dsCoreSettings(window.EJS_emulator)', repaired.context);
-  assert.equal(native.getCoreSettings(), 'citra_use_hw_shader_cache = "enabled"\ncitra_resolution_factor = 2\n');
+  vm.runInContext('install3dsCoreSettings(window.EJS_emulator)', repaired.context);
+  assert.equal(native.getCoreSettings(), 'citra_use_hw_shader_cache = "enabled"\ncitra_resolution_factor = 2\ncitra_touch_touchscreen = "enabled"\n');
   assert.equal(vm.runInContext('threeDsStartupPolicy.coreSettingsFile.shaderCacheValue', repaired.context), 'enabled');
 });
 
@@ -1544,6 +1544,61 @@ test('DS routing leaves other systems and explicit older runtimes unchanged', as
     support.attach({ getCore: () => core, ejs_version: version, elements: { parent: host } });
     assert.equal(host.classList.contains('rv-ds-touch'), false); support.stop();
   }
+});
+
+test('pinned 3DS routes native canvas touch without claiming DS routing and restores only its own class', async () => {
+  const env = await environment(playerSource);
+  for (const preexisting of [false, true]) {
+    const host = env.document.createElement('div');
+    if (preexisting) host.classList.add('rv-3ds-touch');
+    const canvas = env.document.createElement('canvas');
+    const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+    const emulator = { started: true, ejs_version: '4.3.0-pre', getCore: () => 'azahar', canvas, elements: { parent: host } };
+    support.attach(emulator); support.attach(emulator);
+    assert.equal(host.classList.contains('rv-3ds-touch'), true);
+    assert.equal(host.classList.contains('rv-ds-touch'), false);
+    env.document.dispatch('touchstart', { target: canvas, type: 'touchstart' });
+    env.document.dispatch('pointerdown', { target: canvas, type: 'pointerdown' });
+    assert.equal(support.snapshot().threeDsTouchRouting, 'canvas-and-controls');
+    assert.equal(support.snapshot().dsTouchRouting, undefined);
+    assert.equal(support.snapshot().canvasTouchEvents, 1);
+    assert.equal(support.snapshot().canvasPointerEvents, 1);
+    support.stop();
+    assert.equal(host.classList.contains('rv-3ds-touch'), preexisting);
+  }
+  const host = env.document.createElement('div');
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  support.attach({ ejs_version: '4.2.3', getCore: () => 'azahar', elements: { parent: host } });
+  assert.equal(host.classList.contains('rv-3ds-touch'), false);
+});
+
+test('3DS finger support migrates only the old touch default, preserves later choices and reaches empty native config files', async () => {
+  const game = { id: 1, title: '3DS title', saveName: 'Fixed name', core: '3ds', rom: 'test.3ds' };
+  const key = 'ejs-1-3ds-Fixed name-settings';
+  const original = { settings: { citra_touch_touchscreen: 'disabled', citra_mouse_touchscreen: 'disabled', citra_layout_option: 'side by side' }, controlSettings: { 0: { 8: 'KeyX' } }, cheats: [{ code: 'test' }] };
+  const store = storage({ [key]: JSON.stringify(original), 'save-data': 'untouched' });
+  const env = await environment(playerSource, { search: '?id=1&threads=1', games: [game], localStorageObject: store });
+  assert.equal(env.window.EJS_defaultOptions.citra_touch_touchscreen, 'enabled');
+  const expected = structuredClone(original); expected.settings.citra_touch_touchscreen = 'enabled';
+  assert.deepEqual(JSON.parse(store.getItem(key)), expected);
+  assert.equal(store.getItem('save-data'), 'untouched');
+  original.settings.citra_touch_touchscreen = 'disabled'; store.setItem(key, JSON.stringify(original));
+  const repeated = await environment(playerSource, { search: '?id=1&threads=1', games: [game], localStorageObject: store });
+  assert.deepEqual(JSON.parse(store.getItem(key)), original);
+  const emulator = { getCoreSettings() { return 'citra_touch_touchscreen = "disabled"\n'; } };
+  repeated.window.EJS_emulator = emulator;
+  vm.runInContext('install3dsCoreSettings(window.EJS_emulator)', repeated.context);
+  assert.equal(emulator.getCoreSettings(), 'citra_touch_touchscreen = "disabled"\n');
+  const fresh = await environment(playerSource, { search: '?id=1&threads=1', games: [game] });
+  const native = { getCoreSettings() { return ''; } }; const getSettings = native.getCoreSettings;
+  fresh.window.EJS_emulator = native;
+  vm.runInContext('install3dsCoreSettings(window.EJS_emulator)', fresh.context);
+  assert.equal(native.getCoreSettings(), 'citra_touch_touchscreen = "enabled"\n');
+  assert.equal(vm.runInContext('threeDsTouchPolicy.coreSettingsFile.touchValue', fresh.context), 'enabled');
+  await vm.runInContext('shutdownPlayer()', fresh.context);
+  assert.equal(native.getCoreSettings, getSettings);
+  const custom = await environment(playerSource, { search: '?id=1&threads=1', games: [{ ...game, dataPath: 'https://custom.example/data/' }] });
+  assert.equal(custom.window.EJS_defaultOptions.citra_touch_touchscreen, undefined);
 });
 
 test('DS startup migrates relative Mouse mode once without touching saves, controls or cheats', async () => {
