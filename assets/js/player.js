@@ -44,6 +44,7 @@ let restoreAudioContextTracking = null;
 let legacyLanguageLoader = false;
 let runtimeSupport = null;
 let threeDsStartupPolicy = null;
+let restoreThreeDsCoreSettings = null;
 const ownedAudioContexts = new Set();
 
 function renderRomPreparation(stats) {
@@ -232,7 +233,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.17.1",
+    appVersion: "2.17.2",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -326,7 +327,7 @@ function configureSafari3dsCache(game, core, dataPath) {
   try {
     const storage = window.localStorage;
     const saveName = game.saveName || game.title;
-    const migrationKey = 'retro-vault-safari-3ds-cache-v1:' + JSON.stringify([game.id, saveName]);
+    const migrationKey = 'retro-vault-safari-3ds-cache-v2:' + JSON.stringify([game.id, saveName]);
     if (storage.getItem(migrationKey) === '1') {
       threeDsStartupPolicy.savedPreferenceMigration = 'already-applied';
       return;
@@ -348,6 +349,30 @@ function configureSafari3dsCache(game, core, dataPath) {
   } catch {
     threeDsStartupPolicy.savedPreferenceMigration = 'unavailable';
   }
+}
+
+function installSafari3dsCoreSettings(emulator) {
+  if (!threeDsStartupPolicy || typeof emulator?.getCoreSettings !== 'function' || restoreThreeDsCoreSettings) return;
+  const original = emulator.getCoreSettings;
+  const wrapped = function(...args) {
+    let text = Reflect.apply(original, this, args);
+    if (typeof text !== 'string') throw new Error('The pinned runtime returned an invalid core settings file.');
+    // In 4.3.0-pre, getCoreSettings returns an empty string when no saved
+    // settings record exists, even if defaultOptions is configured. Supply
+    // this scoped default at the actual native configuration-file boundary.
+    let match = /^\s*citra_use_hw_shader_cache\s*=\s*(?:"([^"]*)"|([^\s#]+))/m.exec(text);
+    if (!match) {
+      text += (text && !text.endsWith('\n') ? '\n' : '') + 'citra_use_hw_shader_cache = "disabled"\n';
+      match = [null, 'disabled'];
+    }
+    threeDsStartupPolicy.coreSettingsFile = { source: 'native-startup-config', shaderCacheValue: match[1] ?? match[2] };
+    return text;
+  };
+  emulator.getCoreSettings = wrapped;
+  restoreThreeDsCoreSettings = () => {
+    if (emulator.getCoreSettings === wrapped) emulator.getCoreSettings = original;
+    restoreThreeDsCoreSettings = null;
+  };
 }
 
 function configureDsTouchMode(game, core, loaderVersion) {
@@ -588,6 +613,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     if (!displayedMessage?.isError) hideMessage();
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
+    installSafari3dsCoreSettings(emulator);
     if (threeDsMonitor) {
       try { threeDsMonitor.attach(emulator); }
       catch (error) { reportException(error, 'startError'); return; }
@@ -770,6 +796,7 @@ function shutdownPlayer(reason = "close") {
   if (cleanupPromise) return cleanupPromise;
   playerClosing = true;
   localPreparationController.abort();
+  restoreThreeDsCoreSettings?.();
   runtimeSupport?.stop();
   const romCleanup = lazyRom?.stop();
   renderRomPreparation(null);

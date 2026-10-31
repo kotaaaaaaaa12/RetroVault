@@ -247,6 +247,56 @@ test('Safari pinned 3DS cache default migrates only its saved preference once an
   }
 });
 
+test('Safari 3DS writes cache OFF at the native config boundary with no saved record, repairs v1 preferences, and preserves later choices', async () => {
+  const game = { id: 1, title: '3DS title', saveName: 'Fixed save', core: '3ds', rom: 'test.3ds' };
+  const options = { navigator: { userAgent: 'Version/26.5 Safari/605.1.15' }, search: '?id=1&threads=1', games: [game] };
+  const env = await environment(playerSource, options);
+  const original = function(value) { assert.equal(this, emulator); assert.equal(value, 123); return ''; };
+  const emulator = { getCoreSettings: original, config: {}, getCore: () => 'azahar', download() {}, ejs_version: '4.3.0-pre', canvas: new Element() };
+  env.window.EJS_emulator = emulator;
+  env.window.RetroLazyRom = { install: () => ({ stats: {}, stop: () => Promise.resolve() }) };
+  env.window.EJS_ready();
+  assert.equal(emulator.getCoreSettings(123), 'citra_use_hw_shader_cache = "disabled"\n');
+  const policy = vm.runInContext('threeDsStartupPolicy', env.context);
+  assert.equal(policy.coreSettingsFile.shaderCacheValue, 'disabled');
+  emulator.started = true;
+  env.window.EJS_onGameStart();
+  assert.equal(JSON.parse(env.window.sessionStorage.getItem('retro-vault-diagnostics')).threeDsStartupPolicy.coreSettingsFile.shaderCacheValue, 'disabled');
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(emulator.getCoreSettings, original);
+
+  const key = 'ejs-1-3ds-Fixed save-settings';
+  const store = storage({ [key]: JSON.stringify({ settings: { citra_use_hw_shader_cache: 'enabled', citra_use_hw_shaders: 'enabled' } }),
+    ['retro-vault-safari-3ds-cache-v1:' + JSON.stringify([1, 'Fixed save'])]: '1' });
+  const repaired = await environment(playerSource, { ...options, localStorageObject: store });
+  assert.equal(JSON.parse(store.getItem(key)).settings.citra_use_hw_shader_cache, 'disabled');
+  const native = { getCoreSettings: () => 'citra_use_hw_shader_cache = "enabled"\ncitra_resolution_factor = 2\n' };
+  repaired.window.EJS_emulator = native;
+  vm.runInContext('installSafari3dsCoreSettings(window.EJS_emulator)', repaired.context);
+  assert.equal(native.getCoreSettings(), 'citra_use_hw_shader_cache = "enabled"\ncitra_resolution_factor = 2\n');
+  assert.equal(vm.runInContext('threeDsStartupPolicy.coreSettingsFile.shaderCacheValue', repaired.context), 'enabled');
+});
+
+test('native 3DS option readback waits for startup, reports current values and survives shutdown', async () => {
+  const env = await environment(playerSource);
+  const support = new env.window.RetroRuntimeSupport({ contexts: () => [] });
+  let reads = 0;
+  const emulator = { ejs_version: '4.3.0-pre', getCore: () => 'azahar', started: false,
+    gameManager: { getCoreOptions() { reads++; return 'citra_use_hw_shader_cache|disabled; enabled|disabled\ncitra_resolution_factor|1; 1|2'; } } };
+  support.attach(emulator);
+  support.nativeSnapshot(); assert.equal(reads, 0);
+  emulator.started = true;
+  support.nativeSnapshot(); assert.equal(reads, 0);
+  support.coreStartup.mainReturned = true;
+  let snapshot = support.nativeSnapshot(); assert.equal(reads, 1);
+  assert.equal(snapshot.startup.reportedOptions.citra_use_hw_shader_cache, 'disabled');
+  assert.equal(snapshot.startup.reportedOptionsSource, 'native-get_core_options');
+  support.nativeSnapshot(); assert.equal(reads, 1);
+  support.stop(); emulator.gameManager.getCoreOptions = () => { throw new Error('must not read after stop'); };
+  snapshot = support.nativeSnapshot();
+  assert.equal(snapshot.startup.reportedOptions.citra_use_hw_shader_cache, 'disabled');
+});
+
 test('standalone NES comparison excludes custom loaders and preserves normal diagnostics', async () => {
   const shared = storage({ 'retro-vault-diagnostics': 'normal-player-log' });
   const env = await environment(coreTestSource, {

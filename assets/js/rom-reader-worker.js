@@ -81,7 +81,7 @@ async function cleanupDisk() {
 }
 async function cacheSetup() {
   try {
-    if (!globalThis.RetroRomCache) importScripts('/assets/js/rom-cache.js?v=2.17.1');
+    if (!globalThis.RetroRomCache) importScripts('/assets/js/rom-cache.js?v=2.17.2');
     cacheKey = await RetroRomCache.key(remoteUrl, remoteTag, remoteSize);
     diskDirectory = await RetroRomCache.directory(true);
   } catch (error) { throw ioError(error.name === 'QuotaExceededError' ? 18 : 17); }

@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.17.1**. Site releases use
+The current Retro Vault release is **2.17.2**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -829,3 +829,36 @@ the existing OPFS ROM. These observations do not establish a crash cause or
 long-term stability, and the normal player's persistent save storage differs
 from the comparison's fresh volatile storage. This policy is a targeted
 workaround to validate in the normal player, not a claimed performance fix.
+
+
+## Deliver native startup defaults and verify readback (2.17.2)
+
+The pinned 4.3.0-pre frontend's actual `getCoreSettings` implementation returns
+an empty configuration if localStorage is enabled but the per-game settings
+record is missing. In contrast, its disableLocalStorage comparison path emits
+defaultOptions. This exact method was evaluated to reproduce the difference.
+Consequently, the 2.17.1 policy/migration status alone was not proof of native
+cache OFF. The submitted normal-player report also recorded shader cache loading,
+but contained no native option readback.
+
+The scoped Safari 3DS adapter now wraps `getCoreSettings` before core startup.
+When the generated native settings file lacks `citra_use_hw_shader_cache`, it
+appends `citra_use_hw_shader_cache = "disabled"`. Existing explicit values in
+the file are retained. Preference migration v2 repairs startup preferences once,
+even when the earlier v1 marker exists, without deleting saves or cached files.
+The settings generator is restored on shutdown. A second diagnostic field records
+the actual startup-file value; this is still distinct from native option readback.
+
+Normal pinned Azahar diagnostics now expose `coreStartup.reportedOptions` and
+`reportedOptionsSource = native-get_core_options`, reading at most every two
+seconds, only after callMain returned and the frontend reported startup. Values
+are bounded, current values are separated from available choices, and the last
+readback survives shutdown. Calls are never made during native initialization,
+when the pinned getter's option-manager pointer can be unavailable. Tests cover
+the missing-record path, prior migration repair, preserved later choices, and
+safe readback lifecycle. No core binary or save-store behavior changes.
+
+This corrects a verified startup configuration bug. It does not establish why
+iPadOS/Safari reloaded the page, prove long-term stability, or improve FPS by
+itself. The normal player's native persistent save mount remains different from
+the comparison test's fresh volatile mount.

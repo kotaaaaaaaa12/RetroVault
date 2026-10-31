@@ -113,7 +113,7 @@
     version.disabled = true;
     report = {
       schemaVersion: 1,
-      appVersion: "2.17.1",
+      appVersion: "2.17.2",
       mode: "standalone-core-test",
       emulatorVersion: release,
       game: { id: game.id, title: game.title, core: game.core },

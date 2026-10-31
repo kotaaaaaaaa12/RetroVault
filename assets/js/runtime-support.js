@@ -197,6 +197,28 @@
         const canvas = this.emulator?.canvas;
         if (canvas) this.coreStartup.canvas = { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight };
         this.coreStartup.frontendStarted = this.emulator?.started === true;
+        // The native getter has no null guard before core initialization.
+        // Read only after callMain returned and the frontend reported startup.
+        const now = Date.now();
+        if (this.coreStartup.mainReturned === true && this.coreStartup.frontendStarted
+          && typeof this.emulator?.gameManager?.getCoreOptions === 'function'
+          && (!this.lastCoreOptionsRead || now - this.lastCoreOptionsRead >= 2000)) {
+          this.lastCoreOptionsRead = now;
+          try {
+            const raw = this.emulator.gameManager.getCoreOptions();
+            if (typeof raw === 'string' && raw.length <= 131072) {
+              const options = {};
+              for (const line of raw.split('\n').slice(0, 128)) {
+                const [key, value] = line.split('; ')[0].split('|');
+                if (/^citra_[a-z0-9_]{1,64}$/.test(key) && typeof value === 'string' && value.length <= 100) options[key] = value;
+              }
+              if (Object.keys(options).length) {
+                this.coreStartup.reportedOptions = options;
+                this.coreStartup.reportedOptionsSource = 'native-get_core_options';
+              }
+            }
+          } catch { this.coreStartup.optionReadFailed = true; }
+        }
       }
       return { startup: this.coreStartup, log: this.coreLog, issues: this.coreIssues };
     }

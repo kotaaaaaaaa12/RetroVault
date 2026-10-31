@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.17.1">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.17.1">
-  <script src="/assets/js/i18n.js?v=2.17.1" defer></script>
-  <script src="/assets/js/changelog.js?v=2.17.1" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.17.2">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.17.2">
+  <script src="/assets/js/i18n.js?v=2.17.2" defer></script>
+  <script src="/assets/js/changelog.js?v=2.17.2" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-core-defaults">
+      <div class="release-meta"><span>2.17.2</span><time datetime="2026-10-31">2026-10-31</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-core-defaults" data-i18n="releaseCoreDefaultsTitle">Deliver the Safari 3DS cache setting to native startup</h2>
+      <ul><li data-i18n="releaseCoreDefaultsDetails">Fixed an empty native settings file when no saved preferences existed, supplied the scoped cache default at startup, revised its one-time migration, and added native option readback to normal diagnostics. This does not establish a crash cause or performance improvement.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-safari-3ds-cache">
-      <div class="release-meta"><span>2.17.1</span><time datetime="2026-10-31">2026-10-31</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.17.1</span><time datetime="2026-10-31">2026-10-31</time></div>
       <h2 id="release-safari-3ds-cache" data-i18n="releaseSafari3dsCacheTitle">Safari 3DS shader-cache default</h2>
       <ul><li data-i18n="releaseSafari3dsCacheDetails">Default Safari 3DS shader caching to OFF on the pinned runtime and migrate its saved preference once. Hardware shaders and saves are preserved. The comparison does not establish a crash cause, long-term stability, or improved FPS.</li></ul>
     </article>
