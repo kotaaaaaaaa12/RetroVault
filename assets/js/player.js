@@ -233,7 +233,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.18.0",
+    appVersion: "2.19.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -615,6 +615,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     const emulator = window.EJS_emulator;
     installSafari3dsCoreSettings(emulator);
     if (threeDsMonitor) {
+      threeDsMonitor.onChange = () => sampleDiagnostics();
       try { threeDsMonitor.attach(emulator); }
       catch (error) { reportException(error, 'startError'); return; }
     }
@@ -845,6 +846,7 @@ function shutdownPlayer(reason = "close") {
   });
   cleanupPromise = Promise.allSettled([flushSave, saveManager?.pendingOperation, saveManager?.nativePending, romCleanup]).then(([flushResult]) => {
     const saveFlush = flushResult.status === "fulfilled" ? flushResult.value : "failed";
+    threeDsMonitor?.finishWorkers();
     const contexts = existingAudioContexts(module);
     for (const context of contexts) {
       try { Promise.resolve(context.close()).catch(() => {}); } catch {}

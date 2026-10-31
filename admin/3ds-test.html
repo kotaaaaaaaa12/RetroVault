@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.18.0">
-  <link rel="stylesheet" href="/assets/css/admin.css?v=2.18.0">
-  <link rel="stylesheet" href="/assets/css/3ds-test.css?v=2.18.0">
-  <link rel="stylesheet" href="/assets/css/notices.css?v=2.18.0">
-  <script src="/assets/js/i18n.js?v=2.18.0" defer></script>
-  <script src="/assets/js/notices.js?v=2.18.0" defer></script>
-  <script src="/assets/js/3ds-test-support.js?v=2.18.0" defer></script>
-  <script src="/assets/js/3ds-test.js?v=2.18.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.19.0">
+  <link rel="stylesheet" href="/assets/css/admin.css?v=2.19.0">
+  <link rel="stylesheet" href="/assets/css/3ds-test.css?v=2.19.0">
+  <link rel="stylesheet" href="/assets/css/notices.css?v=2.19.0">
+  <script src="/assets/js/i18n.js?v=2.19.0" defer></script>
+  <script src="/assets/js/notices.js?v=2.19.0" defer></script>
+  <script src="/assets/js/3ds-test-support.js?v=2.19.0" defer></script>
+  <script src="/assets/js/3ds-test.js?v=2.19.0" defer></script>
 </head>
 <body>
 <main>
@@ -25,13 +25,14 @@
   </header>
   <section class="panel">
     <h1 data-i18n="threeDsTest">3DS comparison test</h1>
-    <p class="hint" data-i18n="threeDsHelp">Choose Shader cache OFF first, then compare Cache OFF + existing saved data using the same game, page, and device orientation. Tap Start Game inside the player. Finish each test before starting another. Results remain on this device after a reload.</p>
+    <p class="hint" data-i18n="threeDsHelp">Compare existing saved data with 4 initial Workers against the same condition with 32 initial Workers, using the same game, page, orientation, and in-game actions. Tap Start Game inside the player. Finish each test before starting another. Download all results after the comparison.</p>
     <p class="hint" data-i18n="threeDsScope">Memory figures measure the core's WebAssembly region, not actual total RAM or GPU use. An interrupted result does not identify why the page closed. This test does not confirm a crash fix.</p>
-    <p class="hint" data-i18n="threeDsSaves">Tests use clean native settings and temporary save storage. Only the existing-saved-data condition loads a snapshot of normal native saves. No test writes back to normal saves. Cached ROM downloads can be reused. The shader comparisons use 1x internal resolution.</p>
+    <p class="hint" data-i18n="threeDsSaves">Tests use clean native settings and temporary save storage. Existing-saved-data and Worker-pool conditions load a read-only snapshot of normal native saves. Test changes are discarded. Cached ROM downloads can be reused. Internal resolution is 1x.</p>
     <div class="fields">
       <label><span data-i18n="games">Games</span><select id="three-ds-game" disabled></select></label>
-      <label><span data-i18n="threeDsCondition">Condition</span><select id="three-ds-condition"><option value="baseline" data-i18n="threeDsBaseline">Baseline</option><option value="shader-cache-off" selected data-i18n="threeDsCacheOff">Shader cache OFF</option><option value="hardware-shaders-off" data-i18n="threeDsShadersOff">Hardware shaders OFF</option><option value="saved-data-readonly" data-i18n="threeDsSavedData">Cache OFF + existing saved data (read only)</option></select></label>
+      <label><span data-i18n="threeDsCondition">Condition</span><select id="three-ds-condition"><option value="baseline" data-i18n="threeDsBaseline">Baseline</option><option value="shader-cache-off" data-i18n="threeDsCacheOff">Shader cache OFF</option><option value="hardware-shaders-off" data-i18n="threeDsShadersOff">Hardware shaders OFF</option><option value="saved-data-readonly" data-i18n="threeDsSavedData">Cache OFF + existing saved data (32 initial Workers)</option><option value="worker-pool-4" selected data-i18n="threeDsWorkerPool4">Cache OFF + existing saved data (4 initial Workers)</option></select></label>
     </div>
+    <p class="hint" data-i18n="threeDsWorkerHelp">Compare 4 initial Workers against 32 with the same core options and read-only saved data. Threads stay enabled and additional Workers may be created. Termination requests do not prove memory release.</p>
     <p class="hint" data-i18n="threeDsConditionsHelp">Shader cache OFF changes citra_use_hw_shader_cache only. Hardware shaders OFF changes citra_use_hw_shaders only and may be slower. Both comparisons use the same clean baseline, not the preceding test's settings.</p>
     <p class="hint" data-i18n="threeDsSavedDataHelp">Compare Shader cache OFF with Cache OFF + existing saved data on this same page and in the same orientation. The latter loads a read-only snapshot of the native save database into temporary memory. Changes made during either test are discarded; normal saves are not updated. This separates saved-data loading from automatic database writes, but does not test the normal save manager or launcher.</p>
     <div class="actions"><button id="three-ds-start" type="button" data-i18n="play" disabled>PLAY</button><button id="three-ds-stop" type="button" data-i18n="coreTestFinish" hidden>Finish test</button></div>

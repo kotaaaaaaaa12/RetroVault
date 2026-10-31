@@ -164,7 +164,7 @@ test('private 3DS player isolates preferences, save manager, diagnostics and nat
   assert.ok([...env.timers.values()].some(timer => timer.interval && timer.delay === 2000));
   const IDBFS = {}, MEMFS = {}; let mounted;
   const FS = { filesystems: { IDBFS, MEMFS }, mount(type) { mounted = type; } };
-  env.window.EJS_emulator = { Module: { FS }, initializeGameManager() { FS.mount(IDBFS, { autoPersist: true }, '/data/saves'); }, getCore: () => 'azahar', ejs_version: '4.3.0-pre', config: {}, download() {}, canvas: new Element() };
+  env.window.EJS_emulator = { Module: { FS }, initGameCore() {}, initModule() {}, initializeGameManager() { FS.mount(IDBFS, { autoPersist: true }, '/data/saves'); }, getCore: () => 'azahar', ejs_version: '4.3.0-pre', config: {}, download() {}, canvas: new Element() };
   env.window.RetroLazyRom = { install: () => ({ stats: {} }) };
   env.window.EJS_ready();
   await env.window.EJS_emulator.initializeGameManager();
@@ -760,13 +760,16 @@ test('both locale dictionaries cover every interface key used by scripts and mar
   const env = await environment(appSource);
   const playerHtml = await readFile(new URL('../pages/player.html', import.meta.url), 'utf8');
   const changelogHtml = await readFile(new URL('../pages/changelog.html', import.meta.url), 'utf8');
-  const managementSources = await Promise.all(['../admin/index.html', '../admin/login.html', '../admin/core-test.html', '../assets/js/admin.js', '../assets/js/login.js', '../assets/js/core-test.js'].map(path => readFile(new URL(path, import.meta.url), 'utf8')));
+  const managementSources = await Promise.all(['../admin/index.html', '../admin/login.html', '../admin/core-test.html', '../admin/3ds-test.html', '../assets/js/3ds-test.js', '../assets/js/admin.js', '../assets/js/login.js', '../assets/js/core-test.js'].map(path => readFile(new URL(path, import.meta.url), 'utf8')));
   const source = appSource + playerSource + savesSource + html + playerHtml + changelogHtml + managementSources.join('\n');
   const keys = new Set([
     ...[...source.matchAll(/(?:\bt|setNotice|reportPlayerError|playerError|showMessage|setStatus|ask|show|makeButton)\(["']([a-zA-Z]+)["']/g)].map(match => match[1]),
     ...[...source.matchAll(/data-i18n(?:-[a-z-]+)?="([a-zA-Z]+)"/g)].map(match => match[1]),
-    'ambiguousExtension', 'unknownExtension', 'runtimeError', 'saveHere', 'loadHere', 'downloadBackup', 'importBackup', 'deleteSave'
+    'ambiguousExtension', 'unknownExtension', 'runtimeError', 'saveHere', 'loadHere', 'downloadBackup', 'importBackup', 'deleteSave',
+    ...['not-requested', 'requested', 'termination-requested', 'request-failed', 'no-workers'].map(value => 'threeDsWorkerCleanup_' + value),
+    ...['pending', 'reading', 'ready', 'failed', 'cancelled'].map(value => 'threeDsSnapshot' + value)
   ]);
+  keys.delete('threeDsSnapshot'); // Dynamic prefix; complete state keys are checked above.
   for (const locale of ['en', 'ja']) {
     env.window.RetroI18n.setLanguage(locale);
     for (const key of keys) assert.notEqual(env.window.RetroI18n.t(key), key, `${locale}: ${key}`);

@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.18.0**. Site releases use
+The current Retro Vault release is **2.19.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -894,3 +894,24 @@ save behavior is unchanged. This comparison isolates loading existing native
 data while suppressing persistent writes; it does not test autoPersist, the
 extra save manager, or the normal launcher's rendering overhead. No crash fix
 or memory-exhaustion diagnosis is claimed.
+
+
+## Initial native Worker pool comparison (2.19.0)
+
+In Administration > 3DS comparison test, compare **Cache OFF + existing saved
+data (4 initial Workers)** with the existing **32 initial Workers** condition.
+Use the same game, orientation, and in-game actions, finish each run, and
+download all comparison results. Both conditions retain the same core options,
+read-only native save snapshot, ROM cache, and Worker instrumentation. Test
+progress is discarded. Normal gameplay is unchanged.
+
+The test modifies only the in-memory JavaScript pool initializer of the pinned
+4.3.0-pre Azahar runtime. It does not overwrite the cached core or WASM. Threads
+remain enabled; the runtime may allocate more than four Workers on demand.
+An unknown initializer layout fails closed instead of running an unmodified
+comparison. Diagnostics include requested and observed initial pool counts,
+created/running/idle Worker handles, bounded events, heap-size changes with
+timestamps, and explicit termination requests after normal shutdown preparation.
+Worker.terminate has no completion signal: zero handles and a successful request
+do not prove resident memory was reclaimed. Interrupted or killed pages may not
+complete cleanup. These results do not establish a crash cause or FPS fix.
