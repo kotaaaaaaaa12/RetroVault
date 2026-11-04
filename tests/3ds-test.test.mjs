@@ -35,6 +35,10 @@ test('3DS test conditions are private-path scoped and alternate exactly one base
   assert.equal(config('worker-pool-4').savedData, true);
   assert.equal(config('worker-pool-4').workerPool, 4);
   assert.equal(config('saved-data-readonly').workerPool, 32);
+  assert.equal(config('worker-pool-4-frameskip').workerPool, 4);
+  assert.equal(config('worker-pool-4-frameskip').savedData, true);
+  assert.equal(config('worker-pool-4-frameskip').options.citra_render_frameskip, '1');
+  assert.equal(config('worker-pool-4-frameskip').options.frameskip, '1');
 });
 
 // Reduced form of the pinned pool initializer. The full downloaded core is
@@ -55,7 +59,7 @@ function workerPool() {
 }
 
 test('both pool comparisons patch only the in-memory initializer, count real handles and preserve dynamic allocation', () => {
-  for (const [profile, count] of [['saved-data-readonly', 32], ['worker-pool-4', 4]]) {
+  for (const [profile, count] of [['saved-data-readonly', 32], ['worker-pool-4', 4], ['worker-pool-4-frameskip', 4]]) {
     const { API, config, window } = setup();
     const monitor = new API(config(profile));
     const { pool, workers } = workerPool();

@@ -6,7 +6,7 @@
   const element = id => document.getElementById('three-ds-' + id);
   const key = 'retro-vault-3ds-comparison-v1';
   const profiles = window.Retro3DSDiagnostics.profiles;
-  const profileKeys = { baseline: 'threeDsBaseline', 'shader-cache-off': 'threeDsCacheOff', 'hardware-shaders-off': 'threeDsShadersOff', 'saved-data-readonly': 'threeDsSavedData', 'worker-pool-4': 'threeDsWorkerPool4' };
+  const profileKeys = { baseline: 'threeDsBaseline', 'shader-cache-off': 'threeDsCacheOff', 'hardware-shaders-off': 'threeDsShadersOff', 'saved-data-readonly': 'threeDsSavedData', 'worker-pool-4': 'threeDsWorkerPool4', 'worker-pool-4-frameskip': 'threeDsWorkerPool4Frameskip' };
   const outcomes = ['active', 'stopped', 'interrupted', 'error', 'played', 'screen-blank', 'page-reloaded'];
   const outcomeKeys = { active: 'threeDsActive', stopped: 'threeDsStopped', interrupted: 'threeDsInterrupted', error: 'threeDsError', played: 'threeDsPlayed', 'screen-blank': 'threeDsBlank', 'page-reloaded': 'threeDsReloaded' };
   const phaseKeys = { loading: 'threeDsPhaseLoading', 'waiting-for-start': 'threeDsPhaseWaiting', 'loading-core': 'threeDsPhaseCore', 'initializing-core': 'threeDsPhaseInitializing', 'preparing-files': 'threeDsPhaseFiles', 'loading-rom': 'threeDsPhaseRom', 'starting-game': 'threeDsPhaseStarting', running: 'threeDsPhaseRunning', error: 'threeDsError', closing: 'threeDsPhaseClosing', closed: 'threeDsPhaseClosed', background: 'threeDsPhaseBackground' };

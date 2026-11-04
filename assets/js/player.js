@@ -417,6 +417,12 @@ function configure3dsTouch(game, core, dataPath) {
   } catch { threeDsTouchPolicy.savedPreferenceMigration = 'unavailable'; }
 }
 
+function configure3dsFrameskip(game, core, dataPath) {
+  if (threeDsTest || !['3ds', 'azahar'].includes(core) || dataPath !== DEFAULT_EJS_DATA_PATH) return;
+  window.EJS_defaultOptions.citra_render_frameskip = '1';
+  window.EJS_defaultOptions.frameskip = '1';
+}
+
 function configureDsTouchMode(game, core, loaderVersion) {
   if (loaderVersion !== '4.3.0-pre' || !['nds', 'melonds'].includes(core)) return;
   // Mouse mode integrates relative movement; Touch uses the displayed position
@@ -629,6 +635,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
   configureSafari3dsCache(game, core, dataPath);
   configureDsTouchMode(game, core, loaderVersion);
   configure3dsTouch(game, core, dataPath);
+  configure3dsFrameskip(game, core, dataPath);
   beginDiagnostics(game, threads, loaderVersion);
   if (typeof window.RetroResourceDiagnostics === "function") {
     resourceDiagnostics = new window.RetroResourceDiagnostics({

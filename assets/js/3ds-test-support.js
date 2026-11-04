@@ -16,7 +16,8 @@
     'shader-cache-off': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' }),
     'hardware-shaders-off': Object.freeze({ ...baseline, citra_use_hw_shaders: 'disabled' }),
     'saved-data-readonly': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' }),
-    'worker-pool-4': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' })
+    'worker-pool-4': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled' }),
+    'worker-pool-4-frameskip': Object.freeze({ ...baseline, citra_use_hw_shader_cache: 'disabled', citra_render_frameskip: '1', frameskip: '1' })
   });
 
   class ThreeDSDiagnostics {
@@ -28,7 +29,7 @@
       const profile = params.get('profile');
       const runId = params.get('run');
       if (!Object.hasOwn(profiles, profile) || !/^[a-f0-9-]{36}$/.test(runId || '')) throw new Error('Invalid 3DS test condition.');
-      return { profile, runId, options: { ...profiles[profile] }, savedData: ['saved-data-readonly', 'worker-pool-4'].includes(profile), workerPool: profile === 'worker-pool-4' ? 4 : 32 };
+      return { profile, runId, options: { ...profiles[profile] }, savedData: ['saved-data-readonly', 'worker-pool-4', 'worker-pool-4-frameskip'].includes(profile), workerPool: ['worker-pool-4', 'worker-pool-4-frameskip'].includes(profile) ? 4 : 32 };
     }
     static parseOptions(value) {
       const result = {};
@@ -38,7 +39,7 @@
         const [key, current] = header.split('|');
         // The pinned frontend reads the current value from key|value, before
         // the semicolon. The following list contains available values only.
-        if (/^citra_[a-z0-9_]{1,64}$/.test(key) && typeof current === 'string' && current.length <= 100) result[key] = current;
+        if (/^(?:citra_[a-z0-9_]{1,64}|frameskip)$/.test(key) && typeof current === 'string' && current.length <= 100) result[key] = current;
       }
       return result;
     }
