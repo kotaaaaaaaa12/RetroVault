@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/assets/css/notices.css?v=2.19.1">
   <script src="/assets/js/notices.js?v=2.19.1" defer></script>
   <script src="/assets/js/save-storage.js?v=2.19.1" defer></script>
+  <script src="/assets/js/save-bridge.js?v=2.19.1" defer></script>
   <script src="/assets/js/saves.js?v=2.19.1" defer></script>
   <script src="/assets/js/runtime-support.js?v=2.19.1" defer></script>
   <script src="/assets/js/resource-diagnostics.js?v=2.19.1" defer></script>
@@ -55,6 +56,12 @@
           <p id="system-save-status" aria-live="polite"></p>
           <p class="rv-save-help" data-i18n="systemSaveHelp">Game saves are written to this browser periodically and when you close the player. Use the game's own save menu first.</p>
           <button id="save-system-now" type="button" data-i18n="saveSystemNow">Write game save now</button>
+          <div class="rv-save-backups">
+            <button id="save-sav-export" type="button" data-i18n="exportGameSave">Download game save file (.sav)</button>
+            <button id="save-sav-import" type="button" data-i18n="importGameSave">Import game save file (.sav / .dsv)</button>
+            <input id="save-sav-file" type="file" accept=".sav,.dsv" aria-label="Choose a game save file" data-i18n-aria-label="chooseGameSaveBackup" hidden>
+            <p class="rv-save-help" data-i18n="saveBridgeHelp">Save files are exported as raw .sav, which every Nintendo DS core can read. DeSmuME .dsv files are converted on import.</p>
+          </div>
         </section>
         <h3 data-i18n="stateSlotsTitle">State slots</h3>
         <p id="state-support" class="rv-save-help" data-i18n="saveStatesUnsupported" hidden>This core does not support state slots. Use game saves when the game supports them.</p>

@@ -24,9 +24,11 @@
       this.systemFlush = null;
       this.flushAgain = false;
       this.suppressSaveEvent = false;
+      this.flushSuppressed = false;
+      this.flushRestorer = null;
       this.importSlot = 1;
       this.elements = {};
-      for (const id of ["save-root", "save-manager-toggle", "save-manager", "save-manager-heading", "save-manager-close", "save-slots", "state-support", "system-save-status", "save-system-now", "save-manager-status", "save-confirm", "save-confirm-text", "save-confirm-yes", "save-confirm-no", "save-import", "save-current-backup", "save-legacy-import"]) {
+      for (const id of ["save-root", "save-manager-toggle", "save-manager", "save-manager-heading", "save-manager-close", "save-slots", "state-support", "system-save-status", "save-system-now", "save-sav-export", "save-sav-import", "save-sav-file", "save-manager-status", "save-confirm", "save-confirm-text", "save-confirm-yes", "save-confirm-no", "save-import", "save-current-backup", "save-legacy-import"]) {
         this.elements[id] = document.getElementById(id);
       }
       this.elements["save-manager-toggle"].addEventListener("click", () => {
@@ -41,6 +43,17 @@
         if (outcome !== "saved") throw Object.assign(new Error(outcome), { name: "SystemSaveFailed" });
         this.setStatus(this.hasSystemData ? "systemSaveDone" : "noSystemSave");
       }));
+      this.elements["save-sav-export"].addEventListener("click", () => this.run(() => this.exportGameSave()));
+      this.elements["save-sav-import"].addEventListener("click", () => {
+        if (!this.canBridgeSaves()) return;
+        this.elements["save-sav-file"].value = "";
+        this.elements["save-sav-file"].click();
+      });
+      this.elements["save-sav-file"].addEventListener("change", event => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) this.run(() => this.importGameSave(file));
+      });
       this.elements["save-current-backup"].addEventListener("click", () => this.run(async () => {
         this.ensureStates();
         const data = this.emulator.gameManager.getState();
@@ -265,8 +278,10 @@
         row.appendChild(actions);
         list.appendChild(row);
       }
-      for (const id of ["save-system-now", "save-current-backup", "save-legacy-import"]) {
-        this.elements[id].disabled = this.busy || (id !== "save-system-now" && !this.supportsStates());
+      for (const id of ["save-system-now", "save-sav-export", "save-sav-import", "save-current-backup", "save-legacy-import"]) {
+        this.elements[id].disabled = this.busy || (id === "save-sav-export" || id === "save-sav-import"
+          ? !this.canBridgeSaves()
+          : id !== "save-system-now" && !this.supportsStates());
       }
       this.elements["save-manager-status"].textContent = this.status ? t(this.status.key, this.status.values) : "";
       this.elements["save-manager-status"].classList.toggle("rv-save-warning", !!this.status?.error);
@@ -277,6 +292,91 @@
     supportsStates() {
       try { return this.started && this.emulator?.gameManager?.supportsStates?.() === true; }
       catch { return false; }
+    }
+
+    canBridgeSaves() {
+      if (!this.started || this.closing) return false;
+      const manager = this.emulator?.gameManager;
+      if (!manager?.FS?.writeFile || !manager?.FS?.unlink || typeof manager?.getSaveFilePath !== "function") return false;
+      try { return !!manager.getSaveFilePath(); } catch { return false; }
+    }
+
+    resolveSavePaths(manager) {
+      const path = manager.getSaveFilePath();
+      if (!path || !path.startsWith("/")) throw Object.assign(new Error("Unsupported"), { name: "SaveStatesUnsupported" });
+      const separator = path.lastIndexOf("/");
+      const name = path.slice(separator + 1);
+      const dot = name.lastIndexOf(".");
+      const base = dot > 0 ? name.slice(0, dot) : name;
+      const dir = path.slice(0, separator + 1);
+      if (/\.dsv$/i.test(name)) return { target: dir + base + ".sav", stale: path };
+      return { target: path, stale: null };
+    }
+
+    suppressNativeFlush(on) {
+      const manager = this.emulator?.gameManager;
+      if (!manager) return;
+      if (on && !this.flushRestorer) {
+        const original = manager.saveSaveFiles;
+        const owner = this;
+        const wrapped = function() { if (owner.flushSuppressed) return undefined; return original.apply(this, arguments); };
+        manager.saveSaveFiles = wrapped;
+        this.flushRestorer = () => { if (manager.saveSaveFiles === wrapped) manager.saveSaveFiles = original; };
+      }
+      this.flushSuppressed = on;
+      if (!on && this.flushRestorer) {
+        const restore = this.flushRestorer;
+        this.flushRestorer = null;
+        restore();
+      }
+    }
+
+    exportGameSave() {
+      const manager = this.emulator?.gameManager;
+      const bytes = manager?.getSaveFile?.(false);
+      if (!bytes?.byteLength) { this.setStatus("noSystemSave"); return; }
+      const bridge = window.RetroSaveBridge;
+      let raw;
+      try { raw = bridge.stripDsvFooter(new Uint8Array(bytes)); }
+      catch { this.setStatus("invalidGameSaveBackup", {}, true); return; }
+      if (!raw) raw = new Uint8Array(bytes);
+      this.downloadRaw(String(this.game.title).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "game", raw);
+      this.setStatus("gameSaveExported");
+    }
+
+    async importGameSave(file) {
+      if (!this.canBridgeSaves()) throw Object.assign(new Error("Unsupported"), { name: "SaveStatesUnsupported" });
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!bytes.byteLength || bytes.byteLength > 32 * 1024 * 1024) throw Object.assign(new Error("InvalidGameSaveBackup"), { name: "InvalidGameSaveBackup" });
+      let raw;
+      try { raw = window.RetroSaveBridge.stripDsvFooter(bytes); }
+      catch { this.setStatus("invalidGameSaveBackup", {}, true); return; }
+      if (!raw) raw = bytes;
+      const manager = this.emulator.gameManager;
+      const bridge = this.resolveSavePaths(manager);
+      if (!await this.ask("confirmGameSaveImport")) return;
+      if (this.closing) return;
+      this.suppressNativeFlush(true);
+      try {
+        manager.FS.writeFile(bridge.target, raw);
+        if (bridge.stale && manager.FS.analyzePath(bridge.stale).exists) manager.FS.unlink(bridge.stale);
+        manager.restart();
+      } finally { this.suppressNativeFlush(false); }
+      this.systemSavedAt = new Date().toISOString();
+      try { window.localStorage.setItem("retro-vault-system-save:" + this.gameKey, this.systemSavedAt); } catch {}
+      this.setStatus("gameSaveImported");
+      await this.refresh();
+    }
+
+    downloadRaw(base, bytes) {
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${base}.sav`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     }
 
     ensureStates() {
@@ -297,6 +397,7 @@
         : name === "InvalidStateSize" ? "invalidStateSize"
         : name === "InvalidStateBackup" ? "invalidStateBackup"
         : name === "SaveStateMismatch" ? "stateVersionMismatch"
+        : name === "InvalidGameSaveBackup" ? "invalidGameSaveBackup"
         : "saveOperationFailed";
       this.setStatus(key, {}, true);
     }
@@ -523,6 +624,7 @@
 
     stop() {
       this.closing = true;
+      this.suppressNativeFlush(false);
       for (const restore of this.nativeRestorers.reverse()) restore();
       this.answer(false);
       this.pausedByPanel = false;
