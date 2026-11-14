@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.20.0**. Site releases use
+The current Retro Vault release is **2.21.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -915,6 +915,19 @@ timestamps, and explicit termination requests after normal shutdown preparation.
 Worker.terminate has no completion signal: zero handles and a successful request
 do not prove resident memory was reclaimed. Interrupted or killed pages may not
 complete cleanup. These results do not establish a crash cause or FPS fix.
+
+
+## Confirm before closing a game (2.21.0)
+
+The CLOSE button at the top-right of a running game opens a warning dialog
+(index.html `#player-exit-confirm`, styled with the core-picker overlay
+classes so it layers above the game modal) before returning to the library.
+CANCEL, Escape, or the dialog's keep-playing button leaves the emulator
+running; accepting runs the unchanged `closeModal()` shutdown flow, including
+the two-second stalled-core fallback. Labels are translated in
+`assets/js/i18n.js` for English and Japanese, and the flow is covered in
+`tests/player-stability.test.mjs`. The EmulatorJS in-player exit button keeps
+its own built-in confirm, which the bundled dictionary already translates.
 
 
 ## Bridge game saves across NDS cores (2.20.0)

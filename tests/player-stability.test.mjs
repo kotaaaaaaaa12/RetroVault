@@ -115,14 +115,28 @@ async function environment(source, options = {}) {
     timers.set(id, { callback, delay, interval });
     return id;
   };
+  const blobRegistry = new Map();
+  class ContextURL extends URL {
+    static createObjectURL(blob) {
+      const url = `blob:https://retro.example/${blobRegistry.size + 1}`;
+      blobRegistry.set(url, blob);
+      return url;
+    }
+    static revokeObjectURL(url) { blobRegistry.delete(String(url)); }
+  }
+  const contextFetch = async input => {
+    const blob = blobRegistry.get(String(input));
+    if (blob) return { ok: true, json: async () => JSON.parse(await blob.text()), text: async () => blob.text() };
+    return { ok: true, json: async () => structuredClone(options.games || games) };
+  };
   const context = vm.createContext({
-    window, document, URL, URLSearchParams, Blob, File, AbortController, TextEncoder, TextDecoder, crypto: globalThis.crypto, console: options.console || console,
+    window, document, URL: ContextURL, URLSearchParams, Blob, File, AbortController, TextEncoder, TextDecoder, crypto: globalThis.crypto, console: options.console || console,
     sessionStorage: window.sessionStorage, localStorage: window.localStorage, location: window.location, navigator: window.navigator,
     setTimeout: (callback, delay) => schedule(callback, delay),
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id),
     clearInterval: id => timers.delete(id),
-    fetch: async () => ({ ok: true, json: async () => structuredClone(options.games || games) }),
+    fetch: contextFetch,
     MutationObserver: class { constructor(callback) { observers.push(callback); } observe() {} disconnect() { this.disconnected = true; } }
   });
   vm.runInContext(i18nSource, context);
@@ -135,7 +149,7 @@ async function environment(source, options = {}) {
   }
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return { context, window, document, elements, posts, observers, timers };
+  return { context, window, document, elements, posts, observers, timers, contextFetch };
 }
 
 test('launcher has no threading UI and its inline scripts compile', () => {
@@ -672,7 +686,23 @@ test('errors, exit messages, backdrop taps, and Escape keep the game view open; 
   modal.dispatch('click');
   env.document.dispatch('keydown', { key: 'Escape' });
   assert.equal(modal.classList.contains('open'), true);
+  const exitConfirm = env.elements.get('player-exit-confirm');
   env.elements.get('close-btn').dispatch('click');
+  assert.equal(exitConfirm.classList.contains('open'), true);
+  assert.equal(exitConfirm.getAttribute('aria-hidden'), 'false');
+  assert.equal(modal.classList.contains('open'), true);
+  env.document.dispatch('keydown', { key: 'Escape' });
+  assert.equal(exitConfirm.classList.contains('open'), false);
+  assert.equal(exitConfirm.getAttribute('aria-hidden'), 'true');
+  assert.equal(modal.classList.contains('open'), true);
+  env.elements.get('close-btn').dispatch('click');
+  assert.equal(exitConfirm.classList.contains('open'), true);
+  env.elements.get('player-exit-confirm-cancel').dispatch('click');
+  assert.equal(exitConfirm.classList.contains('open'), false);
+  assert.equal(modal.classList.contains('open'), true);
+  env.elements.get('close-btn').dispatch('click');
+  env.elements.get('player-exit-confirm-accept').dispatch('click');
+  assert.equal(exitConfirm.classList.contains('open'), false);
   assert.equal(env.elements.get('close-btn').disabled, true);
   env.window.dispatch('message', { origin: env.window.location.origin, source: frame.contentWindow, data: { type: 'retro-vault-player-stopped', token: vm.runInContext('state.closeToken', env.context) } });
   assert.equal(modal.classList.contains('open'), false);
@@ -782,7 +812,7 @@ test('the player uses the correct Japanese EmulatorJS locale and a bundled compl
   assert.equal(env.window.EJS_language, 'ja');
   assert.equal(env.window.EJS_disableAutoLang, true);
   assert.equal(env.window.EJS_threads, false);
-  const dictionary = await (await fetch(env.window.EJS_paths.ja)).json();
+  const dictionary = await (await env.contextFetch(env.window.EJS_paths.ja)).json();
   assert.equal(dictionary['Download Game Core'], 'ゲームコアをダウンロード');
   assert.equal(dictionary['Graphics Settings'], '映像設定');
   assert.equal(dictionary['Requires restart'], '再起動が必要');

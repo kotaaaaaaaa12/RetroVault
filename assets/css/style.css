@@ -638,6 +638,12 @@ footer span {
   color: var(--accent-2);
 }
 
+.picker-btn.danger {
+  border: 1px solid var(--danger);
+  background: rgba(255, 85, 85, 0.08);
+  color: var(--danger);
+}
+
 .picker-btn:hover,
 .picker-btn:focus-visible {
   outline: none;

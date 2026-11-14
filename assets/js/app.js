@@ -276,7 +276,10 @@ const elements = {
   corePickerHelp: document.getElementById("core-picker-help"),
   corePickerSelect: document.getElementById("core-picker-select"),
   corePickerCancel: document.getElementById("core-picker-cancel"),
-  corePickerPlay: document.getElementById("core-picker-play")
+  corePickerPlay: document.getElementById("core-picker-play"),
+  exitConfirm: document.getElementById("player-exit-confirm"),
+  exitConfirmAccept: document.getElementById("player-exit-confirm-accept"),
+  exitConfirmCancel: document.getElementById("player-exit-confirm-cancel")
 };
 
 function coreLabel(core) {
@@ -698,6 +701,22 @@ function openGame(game) {
   elements.close.blur();
 }
 
+function requestClosePlayer() {
+  if (!elements.modal.classList.contains("open") || state.closing) return;
+  openExitConfirm();
+}
+
+function openExitConfirm() {
+  elements.exitConfirm.classList.add("open");
+  elements.exitConfirm.setAttribute("aria-hidden", "false");
+  elements.exitConfirmCancel.focus();
+}
+
+function hideExitConfirm() {
+  elements.exitConfirm.classList.remove("open");
+  elements.exitConfirm.setAttribute("aria-hidden", "true");
+}
+
 function closeModal() {
   if (!elements.modal.classList.contains("open") || state.closing) return;
   state.closing = true;
@@ -782,7 +801,22 @@ elements.corePicker.addEventListener("click", event => {
   }
 });
 
-elements.close.addEventListener("click", closeModal);
+elements.close.addEventListener("click", () => {
+  elements.close.blur();
+  requestClosePlayer();
+});
+
+elements.exitConfirmAccept.addEventListener("click", () => {
+  elements.exitConfirmAccept.blur();
+  hideExitConfirm();
+  closeModal();
+});
+
+elements.exitConfirmCancel.addEventListener("click", () => {
+  elements.exitConfirmCancel.blur();
+  hideExitConfirm();
+  elements.close.focus();
+});
 
 document.addEventListener("keydown", event => {
   if (event.key !== "Escape") {
@@ -791,6 +825,10 @@ document.addEventListener("keydown", event => {
   if (elements.corePicker.classList.contains("open")) {
     closeCorePicker();
     return;
+  }
+  if (elements.exitConfirm.classList.contains("open")) {
+    hideExitConfirm();
+    elements.close.focus();
   }
 });
 
