@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.19.1**. Site releases use
+The current Retro Vault release is **2.20.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -915,6 +915,22 @@ timestamps, and explicit termination requests after normal shutdown preparation.
 Worker.terminate has no completion signal: zero handles and a successful request
 do not prove resident memory was reclaimed. Interrupted or killed pages may not
 complete cleanup. These results do not establish a crash cause or FPS fix.
+
+
+## Bridge game saves across NDS cores (2.20.0)
+
+The save manager gains two buttons in the system-save section: download the
+game save as a raw `.sav` file, and import a `.sav` or DeSmuME `.dsv` file.
+Downloads strip the DeSmuME footer (82-byte snip note, five LE32 info values,
+zero version, 16-byte `|-DESMUME SAVE-|` cookie, validated against
+`assets/js/save-bridge.js`), so melonDS, DeSmuME, and desktop tools read the
+same bytes. Imports validate the footer the same way, write the raw save to
+the core's save path, delete a stale `.dsv` companion so DeSmuME falls back to
+the imported file, and restart the core (`system_restart`) so the data applies
+immediately. The emulator's periodic and exit-time save flushing is paused
+during the swap so in-memory SRAM cannot overwrite the imported file. Tests
+live in `tests/save-bridge.test.mjs`. State slots keep the existing core and
+emulator-version compatibility checks; only the battery save bridges cores.
 
 
 ## Native 3DS touchscreen input (2.19.1)
