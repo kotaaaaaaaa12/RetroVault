@@ -5,7 +5,7 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.21.0**. Site releases use
+The current Retro Vault release is **2.22.0**. Site releases use
 `major.minor.patch`: increment the patch for fixes, the minor for compatible
 features, and the major for incompatible changes. Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
@@ -915,6 +915,26 @@ timestamps, and explicit termination requests after normal shutdown preparation.
 Worker.terminate has no completion signal: zero handles and a successful request
 do not prove resident memory was reclaimed. Interrupted or killed pages may not
 complete cleanup. These results do not establish a crash cause or FPS fix.
+
+
+## Sync game saves when switching NDS cores (2.22.0)
+
+Switching between the melonDS and DeSmuME cores no longer requires manual
+game-save downloads or imports. melonDS reads and writes the raw `X.sav`
+battery file while DeSmuME prefers its own `X.dsv` file and only falls back to
+`X.sav` when `X.dsv` is absent, so the save manager mirrors the two files
+(`assets/js/saves.js` `syncCoreSaves`, footer helpers in
+`assets/js/save-bridge.js`). After every native save flush, and once at
+player start, both files are compared by stripped payload content; when they
+differ, the file with the newer timestamp is mirrored into the other (raw
+payload for `X.sav`, re-wrapped with the existing footer's memory geometry for
+`X.dsv`). If a mirror happens at start, the core is restarted exactly once so
+it re-reads the save. Identical payloads, missing files, missing timestamps,
+or a malformed DeSmuME footer abort the mirroring without touching either
+file, and non-NDS systems never have an `X.dsv` companion so they are skipped.
+Covered by the cross-core sync tests in `tests/player-stability.test.mjs` and
+the wrap/strip round trips in `tests/save-bridge.test.mjs`. State slots stay
+core-bound by design.
 
 
 ## Confirm before closing a game (2.21.0)

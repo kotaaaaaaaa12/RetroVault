@@ -14,6 +14,7 @@ const threeDsPageSource = await readFile(new URL('../assets/js/3ds-test.js', imp
 const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.url), 'utf8');
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
 const savesSource = await readFile(new URL('../assets/js/saves.js', import.meta.url), 'utf8');
+const saveBridgeSource = await readFile(new URL('../assets/js/save-bridge.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const games = [{ id: 1, title: 'Test Game', core: 'nes', rom: 'Test Game.nes' }];
 
@@ -145,6 +146,7 @@ async function environment(source, options = {}) {
   if (options.loadThreeDsTest) vm.runInContext(threeDsSource, context);
   if (options.loadSaves) {
     vm.runInContext(saveStorageSource, context);
+    vm.runInContext(saveBridgeSource, context);
     vm.runInContext(savesSource, context);
   }
   vm.runInContext(source, context);
@@ -1036,6 +1038,29 @@ async function waitFor(predicate) {
   assert.ok(predicate(), 'The expected asynchronous operation did not complete');
 }
 
+const DSV_TEXT = "|<--Snip above here to create a raw sav by excluding this DeSmuME savedata footer:";
+const DSV_COOKIE = "|-DESMUME SAVE-|";
+const le32 = value => Uint8Array.from([value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff]);
+const textBytes = value => Uint8Array.from(Buffer.from(value, 'ascii'));
+const withDsv = (raw, info = {}) => {
+  const out = new Uint8Array(raw.length + DSV_TEXT.length + 20 + 4 + DSV_COOKIE.length);
+  out.set(raw, 0);
+  let at = raw.length;
+  out.set(textBytes(DSV_TEXT), at);
+  at += DSV_TEXT.length;
+  const view = new DataView(out.buffer);
+  view.setUint32(at, info.size ?? raw.length, true);
+  view.setUint32(at + 4, raw.length, true);
+  view.setUint32(at + 8, info.type ?? 0, true);
+  view.setUint32(at + 12, info.addrSize ?? 2, true);
+  view.setUint32(at + 16, info.memSize ?? raw.length, true);
+  at += 20;
+  view.setUint32(at, 0, true);
+  at += 4;
+  out.set(textBytes(DSV_COOKIE), at);
+  return out;
+};
+
 async function saveEnvironment(options = {}) {
   const indexedDB = options.indexedDB || new MemoryIndexedDB();
   const env = await environment(playerSource, { ...options, indexedDB, loadSaves: true });
@@ -1058,12 +1083,20 @@ async function saveEnvironment(options = {}) {
       loadState(data) { calls.loaded.push([...data]); },
       getSaveFile: () => options.noSystemSave ? null : new Uint8Array([8, 9]),
       saveSaveFiles() { calls.normal += 1; handlers.get('saveSaveFiles')?.(new Uint8Array([8, 9])); },
+      restart() { calls.restarts = (calls.restarts || 0) + 1; },
+      getSaveFilePath: () => options.savePath || '/data/saves/Test Game.sav',
       FS: { syncfs: options.syncfs || ((populate, callback) => callback(null)) }
     }
   };
   const nativeFiles = new Map();
+  const nativeTimes = new Map();
+  for (const [path, file] of Object.entries(options.saveFiles || {})) {
+    nativeFiles.set(path, file.data);
+    nativeTimes.set(path, file.time || 0);
+  }
+  emulator.gameManager.FS.stat = path => { if (!nativeTimes.has(path)) throw new Error('Missing native file'); return { mtime: nativeTimes.get(path) }; };
   emulator.gameManager.FS.readFile = path => { const data = nativeFiles.get(path); if (!data) throw new Error('Missing native file'); return data.slice(); };
-  emulator.gameManager.FS.writeFile = (path, data) => nativeFiles.set(path, data.slice());
+  emulator.gameManager.FS.writeFile = (path, data) => { nativeFiles.set(path, data.slice()); nativeTimes.set(path, (nativeTimes.get(path) || 0) + 1); };
   emulator.gameManager.FS.unlink = path => nativeFiles.delete(path);
   emulator.gameManager.quickSave = function(slot) { this.FS.writeFile('/' + slot + '-quick.state', this.getState()); return true; };
   emulator.gameManager.quickLoad = function(slot) { this.loadState(this.FS.readFile('/' + slot + '-quick.state')); };
@@ -1108,6 +1141,82 @@ test('state slots persist across player reloads and listing does not read state 
   assert.equal(next.emulator.paused, true);
   next.manager.close();
   assert.equal(next.emulator.paused, false);
+});
+
+test('cross-core save sync mirrors a newer DeSmuME file into the raw save and restarts once', async () => {
+  const fresh = Uint8Array.from({ length: 16 }, (_, i) => i);
+  const stale = Uint8Array.from({ length: 16 }, () => 0xEE);
+  const env = await saveEnvironment({
+    savePath: '/data/saves/Test Game.sav',
+    saveFiles: {
+      '/data/saves/Test Game.sav': { data: stale, time: 5 },
+      '/data/saves/Test Game.dsv': { data: withDsv(fresh), time: 9 }
+    }
+  });
+  assert.equal(env.calls.restarts, 1);
+  assert.deepEqual([...env.emulator.gameManager.FS.readFile('/data/saves/Test Game.sav')], [...fresh]);
+});
+
+test('cross-core save sync re-wraps a newer raw save for DeSmuME at boot', async () => {
+  const newer = Uint8Array.from({ length: 16 }, (_, i) => 200 + i);
+  const older = Uint8Array.from({ length: 16 }, () => 0x11);
+  const env = await saveEnvironment({
+    savePath: '/data/saves/Test Game.dsv',
+    saveFiles: {
+      '/data/saves/Test Game.sav': { data: newer, time: 20 },
+      '/data/saves/Test Game.dsv': { data: withDsv(older, { type: 7, addrSize: 3, memSize: 64 }), time: 4 }
+    }
+  });
+  assert.equal(env.calls.restarts, 1);
+  const bridge = vm.runInContext('window.RetroSaveBridge', env.context);
+  const dsv = new Uint8Array(env.emulator.gameManager.FS.readFile('/data/saves/Test Game.dsv'));
+  assert.deepEqual([...bridge.stripDsvFooter(dsv)], [...newer]);
+  assert.equal(bridge.readDsvFooter(dsv).type, 7);
+  assert.equal(bridge.readDsvFooter(dsv).addrSize, 3);
+  assert.equal(bridge.readDsvFooter(dsv).memSize, 64);
+});
+
+test('cross-core save sync re-wraps the raw save for DeSmuME after each flush', async () => {
+  const initial = Uint8Array.from({ length: 16 }, (_, i) => i);
+  const env = await saveEnvironment({
+    savePath: '/data/saves/Test Game.sav',
+    saveFiles: {
+      '/data/saves/Test Game.sav': { data: initial, time: 2 },
+      '/data/saves/Test Game.dsv': { data: withDsv(initial, { type: 7, addrSize: 3, memSize: 64 }), time: 2 }
+    }
+  });
+  assert.equal(env.calls.restarts || 0, 0);
+  const updated = Uint8Array.from({ length: 16 }, (_, i) => 240 + i);
+  env.emulator.gameManager.FS.writeFile('/data/saves/Test Game.sav', updated);
+  env.emulator.gameManager.saveSaveFiles();
+  assert.equal(env.calls.normal, 1);
+  const bridge = vm.runInContext('window.RetroSaveBridge', env.context);
+  const dsv = new Uint8Array(env.emulator.gameManager.FS.readFile('/data/saves/Test Game.dsv'));
+  assert.deepEqual([...bridge.stripDsvFooter(dsv)], [...updated]);
+  assert.equal(bridge.readDsvFooter(dsv).addrSize, 3);
+});
+
+test('cross-core save sync leaves files untouched when timestamps are unavailable', async () => {
+  const sav = Uint8Array.from({ length: 8 }, (_, i) => i);
+  const dsv = withDsv(Uint8Array.from({ length: 8 }, () => 0x22));
+  const env = await saveEnvironment({
+    savePath: '/data/saves/Test Game.sav',
+    saveFiles: {
+      '/data/saves/Test Game.sav': { data: sav, time: 0 },
+      '/data/saves/Test Game.dsv': { data: dsv, time: 0 }
+    }
+  });
+  assert.equal(env.calls.restarts || 0, 0);
+  assert.deepEqual([...env.emulator.gameManager.FS.readFile('/data/saves/Test Game.sav')], [...sav]);
+  assert.deepEqual([...env.emulator.gameManager.FS.readFile('/data/saves/Test Game.dsv')], [...dsv]);
+});
+
+test('cross-core save sync does nothing for cores without save-file pairs', async () => {
+  const env = await saveEnvironment();
+  assert.equal(env.calls.restarts || 0, 0);
+  await env.manager.open();
+  await env.manager.run(() => env.manager.saveState(1));
+  assert.equal(env.manager.slots.length, 1);
 });
 
 test('slot identity separates games and systems but survives local file timestamp changes', async () => {

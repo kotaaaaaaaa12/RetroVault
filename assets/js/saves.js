@@ -26,6 +26,7 @@
       this.suppressSaveEvent = false;
       this.flushSuppressed = false;
       this.flushRestorer = null;
+      this.coreSyncRestorer = null;
       this.importSlot = 1;
       this.elements = {};
       for (const id of ["save-root", "save-manager-toggle", "save-manager", "save-manager-heading", "save-manager-close", "save-slots", "state-support", "system-save-status", "save-system-now", "save-sav-export", "save-sav-import", "save-sav-file", "save-manager-status", "save-confirm", "save-confirm-text", "save-confirm-yes", "save-confirm-no", "save-import", "save-current-backup", "save-legacy-import"]) {
@@ -185,6 +186,7 @@
       if (this.started || this.closing) return;
       this.started = true;
       this.attachNativeSlots();
+      this.attachCoreSaveSync();
       // The native fullscreen element must contain the save controls as well.
       const host = this.emulator?.elements?.parent || document.body;
       host.appendChild(this.elements["save-root"]);
@@ -311,6 +313,110 @@
       const dir = path.slice(0, separator + 1);
       if (/\.dsv$/i.test(name)) return { target: dir + base + ".sav", stale: path };
       return { target: path, stale: null };
+    }
+
+    crossCorePaths(manager) {
+      const path = manager.getSaveFilePath();
+      if (!path || !path.startsWith("/")) return null;
+      const separator = path.lastIndexOf("/");
+      const name = path.slice(separator + 1);
+      const dot = name.lastIndexOf(".");
+      const base = dot > 0 ? name.slice(0, dot) : name;
+      const dir = path.slice(0, separator + 1);
+      return { sav: dir + base + ".sav", dsv: dir + base + ".dsv" };
+    }
+
+    crossCoreBridgeReady() {
+      const bridge = window.RetroSaveBridge;
+      return typeof bridge?.readDsvFooter === "function" && typeof bridge?.wrapDsvFooter === "function";
+    }
+
+    fileMtime(manager, path) {
+      try {
+        const stat = manager.FS.stat?.(path);
+        const value = stat?.mtime;
+        if (!value) return 0;
+        return value instanceof Date ? value.getTime() : Number(value) || 0;
+      } catch { return 0; }
+    }
+
+    sameBytes(a, b) {
+      if (!a || !b || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+
+    // Keeps the raw .sav and the DeSmuME .dsv battery saves pointing at the
+    // newest data so switching cores keeps progress without manual backups.
+    // melonDS reads X.sav raw; DeSmuME prefers X.dsv and only falls back to
+    // X.sav when X.dsv is absent, so both files must carry the same payload.
+    syncCoreSaves(manager) {
+      if (!this.crossCoreBridgeReady()) return false;
+      const paths = this.crossCorePaths(manager);
+      if (!paths) return false;
+      const bridge = window.RetroSaveBridge;
+      let sav = null;
+      let dsv = null;
+      try { sav = manager.FS.readFile(paths.sav); } catch { sav = null; }
+      try { dsv = manager.FS.readFile(paths.dsv); } catch { dsv = null; }
+      if (!sav && !dsv) return false;
+      let raw = null;
+      let footer = null;
+      if (dsv) {
+        const bytes = new Uint8Array(dsv);
+        try { raw = bridge.stripDsvFooter(bytes); }
+        catch { return false; }
+        if (raw === null) raw = bytes;
+        footer = bridge.readDsvFooter(bytes);
+      }
+      const savBytes = sav ? new Uint8Array(sav) : null;
+      if (savBytes && this.sameBytes(raw, savBytes)) return false;
+      if (!savBytes) {
+        if (!raw?.length) return false;
+        manager.FS.writeFile(paths.sav, raw);
+        return true;
+      }
+      if (!dsv || !footer) return false;
+      // The melonDS file is authoritative: re-wrap it for DeSmuME, keeping the
+      // memory geometry from the existing footer. DeSmuME only validates the
+      // cookie, version, and padSize when importing. Without timestamps the
+      // newer file cannot be determined, so leave both files untouched.
+      const savTime = this.fileMtime(manager, paths.sav);
+      const dsvTime = this.fileMtime(manager, paths.dsv);
+      if (!savTime && !dsvTime) return false;
+      if (savTime >= dsvTime) {
+        manager.FS.writeFile(paths.dsv, bridge.wrapDsvFooter(savBytes, footer));
+      } else {
+        manager.FS.writeFile(paths.sav, raw);
+      }
+      return true;
+    }
+
+    attachCoreSaveSync() {
+      const manager = this.emulator?.gameManager;
+      if (!manager || !this.crossCoreBridgeReady()) return;
+      if (!manager.FS?.readFile || !manager.FS?.writeFile || typeof manager?.getSaveFilePath !== "function" || typeof manager?.FS?.stat !== "function") return;
+      const owner = this;
+      const original = manager.saveSaveFiles;
+      if (typeof original !== "function") return;
+      const wrapped = function() {
+        const result = original.apply(this, arguments);
+        if (!owner.flushSuppressed) {
+          try { owner.syncCoreSaves(manager); } catch {}
+        }
+        return result;
+      };
+      manager.saveSaveFiles = wrapped;
+      this.coreSyncRestorer = () => { if (manager.saveSaveFiles === wrapped) manager.saveSaveFiles = original; };
+      // The core already loaded its save file; when the companion core holds
+      // newer data, mirror it now and reset the core once so it re-reads.
+      let changed = false;
+      try { changed = owner.syncCoreSaves(manager); } catch { changed = false; }
+      if (changed && typeof manager.restart === "function") {
+        try { manager.restart(); } catch {}
+      }
     }
 
     suppressNativeFlush(on) {
@@ -625,6 +731,11 @@
     stop() {
       this.closing = true;
       this.suppressNativeFlush(false);
+      if (this.coreSyncRestorer) {
+        const restore = this.coreSyncRestorer;
+        this.coreSyncRestorer = null;
+        restore();
+      }
       for (const restore of this.nativeRestorers.reverse()) restore();
       this.answer(false);
       this.pausedByPanel = false;

@@ -47,5 +47,44 @@
     return null;
   }
 
-  window.RetroSaveBridge = Object.freeze({ stripDsvFooter, isDsvFooter, DSV_FOOTER_SIZE });
+  function readDsvFooter(bytes) {
+    if (bytes.length < DSV_FOOTER_SIZE) return null;
+    const offset = bytes.length - DSV_FOOTER_SIZE;
+    if (!isDsvFooterAt(bytes, offset)) return null;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const base = offset + FOOTER_TEXT.length;
+    return {
+      offset,
+      size: view.getUint32(base, true),
+      padSize: view.getUint32(base + 4, true),
+      type: view.getUint32(base + 8, true),
+      addrSize: view.getUint32(base + 12, true),
+      memSize: view.getUint32(base + 16, true)
+    };
+  }
+
+  // Builds a DeSmuME .dsv file around raw save bytes. On import DeSmuME only
+  // validates the cookie, version, and padSize (mc.cpp GetDSVFileInfo), and
+  // then applies info.padSize and info.addr_size; type and mem_size are kept
+  // for informational parity with the footer DeSmuME itself writes.
+  function wrapDsvFooter(raw, info = {}) {
+    const out = new Uint8Array(raw.length + DSV_FOOTER_SIZE);
+    out.set(raw, 0);
+    let at = raw.length;
+    for (let i = 0; i < FOOTER_TEXT.length; i += 1) out[at + i] = FOOTER_TEXT.charCodeAt(i);
+    at += FOOTER_TEXT.length;
+    const view = new DataView(out.buffer);
+    view.setUint32(at, raw.length, true);
+    view.setUint32(at + 4, raw.length, true);
+    view.setUint32(at + 8, info.type ?? 0, true);
+    view.setUint32(at + 12, info.addrSize ?? 2, true);
+    view.setUint32(at + 16, info.memSize ?? raw.length, true);
+    at += INFO_BYTES;
+    view.setUint32(at, 0, true);
+    at += VERSION_BYTES;
+    for (let i = 0; i < COOKIE.length; i += 1) out[at + i] = COOKIE.charCodeAt(i);
+    return out;
+  }
+
+  window.RetroSaveBridge = Object.freeze({ stripDsvFooter, readDsvFooter, wrapDsvFooter, isDsvFooter, DSV_FOOTER_SIZE });
 })();

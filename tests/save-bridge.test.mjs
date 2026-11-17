@@ -52,3 +52,33 @@ test('short files never look like a DSV', () => {
   assert.equal(bridge.stripDsvFooter(new Uint8Array(121)), null);
   assert.equal(bridge.stripDsvFooter(new Uint8Array(0)), null);
 });
+
+test('wrapDsvFooter builds a valid DeSmuME file around raw bytes', () => {
+  const raw = bytes(4, 5, 6, 7);
+  const dsv = bridge.wrapDsvFooter(raw, { type: 7, addrSize: 3, memSize: 64 });
+  assert.equal(bridge.isDsvFooter(dsv), true);
+  assert.deepEqual([...bridge.stripDsvFooter(dsv)], [...raw]);
+  const info = bridge.readDsvFooter(dsv);
+  assert.equal(info.size, raw.length);
+  assert.equal(info.padSize, raw.length);
+  assert.equal(info.type, 7);
+  assert.equal(info.addrSize, 3);
+  assert.equal(info.memSize, 64);
+});
+
+test('readDsvFooter returns null for raw saves and rejects malformed files', () => {
+  const raw = bytes(1, 2, 3);
+  assert.equal(bridge.readDsvFooter(raw), null);
+  assert.equal(bridge.readDsvFooter(withFooter(raw, raw.length, 7)), null);
+  const broken = new Uint8Array([...raw, ...text(FOOTER_TEXT), ...new Uint8Array(20).fill(0), ...le32(0), ...text(COOKIE)]);
+  assert.equal(bridge.readDsvFooter(broken), null);
+});
+
+test('wrap and strip round-trip preserves the raw payload exactly', () => {
+  const raw = new Uint8Array(1024);
+  for (let i = 0; i < raw.length; i += 1) raw[i] = (i * 7) & 0xff;
+  const wrapped = bridge.wrapDsvFooter(raw);
+  assert.equal(bridge.isDsvFooter(wrapped), true);
+  assert.deepEqual([...bridge.stripDsvFooter(wrapped)], [...raw]);
+  assert.deepEqual([...bridge.stripDsvFooter(bridge.wrapDsvFooter(bridge.stripDsvFooter(wrapped)))], [...raw]);
+});
