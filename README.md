@@ -6,8 +6,10 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 ## Site versions
 
 The current Retro Vault release is **2.22.0**. Site releases use
-`major.minor.patch`: increment the patch for fixes, the minor for compatible
-features, and the major for incompatible changes. Update `version.txt`, the root
+`major.minor.patch`: large compatible updates increment the minor (2.21.0 →
+2.22.0), bug fixes and other small updates increment the patch (2.22.0 →
+2.22.1), and an update large enough to break compatibility moves to 3.x.x.
+Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
 versions (including the local ROM reader worker), and the changelog together.
 The EmulatorJS runtime has its own independent version.
