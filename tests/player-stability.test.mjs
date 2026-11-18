@@ -1934,6 +1934,32 @@ test('DS video rotation remaps touch and mouse coordinates before the core input
   assert.equal(canvas.addEventListener, canvas.constructor.prototype.addEventListener);
 });
 
+test('DS touch rotation uses the visible viewport inside pillarboxed canvases', async () => {
+  const game = { ...games[0], core: 'nds', rom: 'rom/test/library.nds', videoRotation: 1 };
+  const env = await environment(playerSource, { games: [game] });
+  const canvas = new Element();
+  canvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 200, height: 100 });
+  env.window.EJS_emulator = {
+    getCore: () => 'melonds',
+    canvas,
+    gameManager: { getVideoDimensions: key => ({ width: 256, height: 384 })[key] },
+    config: {}, download() {}, ejs_version: '4.3.0-pre'
+  };
+  env.window.EJS_ready();
+  let touch = null;
+  canvas.addEventListener('touchstart', event => { touch = event.touches[0]; });
+  const original = { identifier: 1, clientX: 147.5, clientY: 70, target: canvas };
+  canvas.dispatch('touchstart', { type: 'touchstart', touches: [original], targetTouches: [original], changedTouches: [original] });
+  assert.equal(touch.clientX, 110);
+  assert.equal(touch.clientY, 95);
+  const centered = env.window.RetroTouchRotation.contentRect({ left: 10, top: 20, width: 100, height: 200 }, 1.5);
+  assert.equal(centered.left, 10);
+  assert.equal(centered.top, 20);
+  assert.ok(Math.abs(centered.width - 100) < 0.001);
+  assert.ok(Math.abs(centered.height - 66.6667) < 0.001);
+  await vm.runInContext('shutdownPlayer()', env.context);
+});
+
 test('DS cores with native pointer rotation leave touch coordinates untouched', async () => {
   const game = { ...games[0], core: 'nds', rom: 'rom/test/library.nds', videoRotation: 1,
     coreOverride: 'desmume', coreOptions: { desmume_input_rotation: '270', desmume_pointer_type: 'touch' } };

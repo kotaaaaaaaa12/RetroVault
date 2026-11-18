@@ -244,7 +244,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.23.1",
+    appVersion: "2.23.2",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -473,8 +473,20 @@ function installDsTouchRotation(emulator, game) {
     if (nativeRotation != null && String(nativeRotation) !== '0') return;
   }
   if (typeof window.RetroTouchRotation !== 'function' || !emulator?.canvas) return;
+  let videoAspect = null;
+  const readVideoAspect = () => {
+    if (videoAspect) return videoAspect;
+    try {
+      const width = Number(emulator.gameManager?.getVideoDimensions?.('width'));
+      const height = Number(emulator.gameManager?.getVideoDimensions?.('height'));
+      if (width > 0 && height > 0) videoAspect = rotation % 2 ? height / width : width / height;
+    } catch (error) {
+      console.debug('DS video dimensions were unavailable:', error);
+    }
+    return videoAspect;
+  };
   dsTouchRotation?.detach();
-  dsTouchRotation = new window.RetroTouchRotation(emulator.canvas, rotation);
+  dsTouchRotation = new window.RetroTouchRotation(emulator.canvas, rotation, { getAspectRatio: readVideoAspect });
   if (!dsTouchRotation.attach()) dsTouchRotation = null;
 }
 

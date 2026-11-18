@@ -10,6 +10,24 @@
     return ((Number(rotation) % 4) + 4) % 4;
   }
 
+  function contentRect(rect, aspectRatio) {
+    if (!rect) return rect;
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    const aspect = Number(aspectRatio);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return rect;
+    if (!Number.isFinite(aspect) || aspect <= 0) return rect;
+    if (Math.abs(width / height - aspect) < 0.0001) return rect;
+    const contentWidth = width / height > aspect ? height * aspect : width;
+    const contentHeight = width / height > aspect ? height : width / aspect;
+    return {
+      left: rect.left + (width - contentWidth) / 2,
+      top: rect.top,
+      width: contentWidth,
+      height: contentHeight
+    };
+  }
+
   function rotatePoint(x, y, rect, rotation) {
     if (!rect || !Number.isFinite(rect.width) || !Number.isFinite(rect.height) || !rect.width || !rect.height) return null;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
@@ -83,9 +101,10 @@
   }
 
   class RetroTouchRotation {
-    constructor(canvas, rotation) {
+    constructor(canvas, rotation, options = {}) {
       this.canvas = canvas;
       this.rotation = normalizeRotation(rotation);
+      this.getAspectRatio = typeof options.getAspectRatio === "function" ? options.getAspectRatio : null;
       this.originalAdd = null;
       this.originalRemove = null;
       this.proxies = new WeakMap();
@@ -100,7 +119,9 @@
       const originalRemove = canvas.removeEventListener;
       const transform = event => {
         const rect = typeof canvas.getBoundingClientRect === "function" ? canvas.getBoundingClientRect() : null;
-        return rotateEvent(event, rect, this.rotation);
+        const requestedAspect = this.getAspectRatio ? this.getAspectRatio() : null;
+        const intrinsicAspect = Number(canvas.width) > 0 && Number(canvas.height) > 0 ? Number(canvas.width) / Number(canvas.height) : null;
+        return rotateEvent(event, contentRect(rect, requestedAspect || intrinsicAspect), this.rotation);
       };
       canvas.addEventListener = function(type, listener, options) {
         if (typeof listener === "function" && (TOUCH_EVENTS.has(type) || MOUSE_EVENTS.has(type))) {
@@ -133,6 +154,7 @@
   }
 
   RetroTouchRotation.rotatePoint = rotatePoint;
+  RetroTouchRotation.contentRect = contentRect;
 
   window.RetroTouchRotation = RetroTouchRotation;
 })();

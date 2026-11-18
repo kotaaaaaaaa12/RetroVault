@@ -5,10 +5,10 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.23.1**. Site releases use
+The current Retro Vault release is **2.23.2**. Site releases use
 `major.minor.patch`: large compatible updates increment the minor (2.22.0 →
-2.23.0), bug fixes and other small updates increment the patch (2.23.0 →
-2.23.1), and an update large enough to break compatibility moves to 3.x.x.
+2.23.0), bug fixes and other small updates increment the patch (2.23.1 →
+2.23.2), and an update large enough to break compatibility moves to 3.x.x.
 Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
 versions (including the local ROM reader worker), and the changelog together.
@@ -455,13 +455,15 @@ values such as `left/right`, `right/left`, `top/bottom`, and `bottom/top`. For a
 true 90-degree rotation, see the touch-safe `videoRotation` section below.
 
 
-## DS touch-safe video rotation (2.23.1)
+## DS touch-safe video rotation (2.23.2)
 
 `videoRotation` rotates the whole presentation. For DS games, Retro Vault now
 applies the inverse rotation to canvas mouse and touch coordinates before the
 core input driver receives them. A 90 or 270-degree rotation therefore keeps
 taps aligned with the core's unrotated screen layout instead of falling outside
-the bottom-screen hit area.
+the bottom-screen hit area. The mapping uses the visible game viewport rather
+than the whole canvas, so pillarboxed or top-aligned letterboxed layouts keep
+taps aligned as well.
 
 ```json
 {
