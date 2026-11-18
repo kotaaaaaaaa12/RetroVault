@@ -474,7 +474,7 @@ function installDsTouchRotation(emulator, game) {
   }
   if (typeof window.RetroTouchRotation !== 'function' || !emulator?.canvas) return;
   dsTouchRotation?.detach();
-  dsTouchRotation = new window.RetroTouchRotation(emulator.canvas, (4 - rotation) % 4);
+  dsTouchRotation = new window.RetroTouchRotation(emulator.canvas, rotation);
   if (!dsTouchRotation.attach()) dsTouchRotation = null;
 }
 
