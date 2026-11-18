@@ -291,3 +291,21 @@ test('order initialization preserves an existing database and rejects malformed 
   const added = await (await call(env, '/api/admin/games', 'POST', { title: 'Added', core: 'nes' }, auth)).json();
   assert.deepEqual((await (await call(env, '/api/admin/games', 'GET', undefined, auth)).json()).map(game => game.id), [4, 20, added.id]);
 });
+
+test('per-game core options are validated and published with the game', async () => {
+  const env = environment(); const auth = await loggedIn(env); const rom = await upload(env, auth, 'rom', 'game.nds');
+  const coreOptions = { melonds_screen_layout: 'Left/Right', desmume_screens_layout: 'left/right' };
+  const created = await call(env, '/api/admin/games', 'POST', { title: 'Sideways DS', core: 'nds', rom: rom.key, coreOptions, status: 'ready' }, auth);
+  assert.equal(created.status, 201, await created.clone().text());
+  const saved = await created.json();
+  assert.deepEqual(saved.coreOptions, coreOptions);
+  const published = await (await call(env, '/api/games')).json();
+  assert.deepEqual(published[0].coreOptions, coreOptions);
+  const updated = await call(env, '/api/admin/games/' + saved.id, 'PUT', { ...saved, coreOptions: { melonds_screen_layout: 'Bottom Only' } }, auth);
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json()).coreOptions, { melonds_screen_layout: 'Bottom Only' });
+  const tooMany = Object.fromEntries(Array.from({ length: 33 }, (_, index) => ['option_' + index, 'x']));
+  for (const options of [null, [], { melonds_screen_layout: 1 }, { melonds_screen_layout: 'a"b' }, { 'bad key': 'x' }, JSON.parse('{"__proto__":"x"}'), { ejs_threads: 'enabled' }, tooMany]) {
+    assert.equal((await call(env, '/api/admin/games', 'POST', { title: 'Invalid', core: 'nds', rom: rom.key, coreOptions: options }, auth)).status, 400, JSON.stringify(options));
+  }
+});

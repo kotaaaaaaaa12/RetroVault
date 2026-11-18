@@ -24,6 +24,15 @@ const CORE_ALIASES = Object.freeze({
   mame: "mame2003"
 });
 
+const RESERVED_CORE_OPTIONS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+  "ejs_threads",
+  "save-state-location",
+  "save-save-interval"
+]);
+
 const message = document.getElementById("player-message");
 let resourceDiagnostics = null;
 let lazyRom = null;
@@ -234,7 +243,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.22.0",
+    appVersion: "2.23.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -571,6 +580,15 @@ function configureOptionalOptions(game) {
 
   if (typeof game.forceLegacyCores === "boolean") {
     window.EJS_forceLegacyCores = game.forceLegacyCores;
+  }
+
+  if (!threeDsTest && game.coreOptions && typeof game.coreOptions === "object" && !Array.isArray(game.coreOptions)) {
+    for (const [key, value] of Object.entries(game.coreOptions)) {
+      if (key.length > 80 || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(key)) continue;
+      if (RESERVED_CORE_OPTIONS.has(key)) continue;
+      if (typeof value !== "string" || value.length > 80 || /[\u0000-\u001f"\\]/.test(value)) continue;
+      window.EJS_defaultOptions[key] = value;
+    }
   }
 }
 

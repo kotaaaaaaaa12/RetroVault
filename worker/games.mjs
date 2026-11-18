@@ -6,7 +6,7 @@ export function decode(row) { return { ...JSON.parse(row.config), id: row.id, re
 const text = (value, maximum) => typeof value === 'string' && value.length <= maximum && !/[\u0000-\u001f]/.test(value);
 export function normalize(input, previous, id) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('invalidGame');
-  const allowed = new Set(['id', 'revision', 'status', 'updatedAt', 'title', 'titleEn', 'titleJa', 'system', 'core', 'coreOverride', 'saveName', 'rom', 'thumbnail', 'bios', 'patch', 'gameParent', 'threads', 'disableCue', 'forceLegacyCores', 'videoRotation', 'ejsVersion', 'dataPath']);
+  const allowed = new Set(['id', 'revision', 'status', 'updatedAt', 'title', 'titleEn', 'titleJa', 'system', 'core', 'coreOverride', 'saveName', 'rom', 'thumbnail', 'bios', 'patch', 'gameParent', 'threads', 'disableCue', 'forceLegacyCores', 'videoRotation', 'coreOptions', 'ejsVersion', 'dataPath']);
   if (Object.keys(input).some(key => !allowed.has(key))) fail('unsupportedField');
   const localized = input.titleEn !== undefined || input.titleJa !== undefined;
   const titles = {};
@@ -40,6 +40,19 @@ export function normalize(input, previous, id) {
   if (input.videoRotation !== undefined) {
     if (!Number.isInteger(input.videoRotation) || input.videoRotation < 0 || input.videoRotation > 3) fail('invalidGame');
     config.videoRotation = input.videoRotation;
+  }
+  if (input.coreOptions !== undefined) {
+    if (!input.coreOptions || typeof input.coreOptions !== 'object' || Array.isArray(input.coreOptions)) fail('invalidGame');
+    const entries = Object.entries(input.coreOptions);
+    if (entries.length > 32) fail('invalidGame');
+    const coreOptions = {};
+    for (const [key, value] of entries) {
+      if (key.length > 80 || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(key)) fail('invalidGame');
+      if (typeof value !== 'string' || value.length > 80 || /[\u0000-\u001f"\\]/.test(value)) fail('invalidGame');
+      if (['__proto__', 'constructor', 'prototype', 'ejs_threads', 'save-state-location', 'save-save-interval'].includes(key)) fail('invalidGame');
+      coreOptions[key] = value;
+    }
+    config.coreOptions = coreOptions;
   }
   if (input.ejsVersion) {
     if (!text(input.ejsVersion, 80) || !/^[\w.-]+$/.test(input.ejsVersion)) fail('invalidVersion');

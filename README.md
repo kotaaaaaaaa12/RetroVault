@@ -5,10 +5,10 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.22.0**. Site releases use
-`major.minor.patch`: large compatible updates increment the minor (2.21.0 →
-2.22.0), bug fixes and other small updates increment the patch (2.22.0 →
-2.22.1), and an update large enough to break compatibility moves to 3.x.x.
+The current Retro Vault release is **2.23.0**. Site releases use
+`major.minor.patch`: large compatible updates increment the minor (2.22.0 →
+2.23.0), bug fixes and other small updates increment the patch (2.23.0 →
+2.23.1), and an update large enough to break compatibility moves to 3.x.x.
 Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
 versions (including the local ROM reader worker), and the changelog together.
@@ -428,6 +428,36 @@ Source behavior was checked against the EmulatorJS melonDS fork at
 `18a057d372783b42d7e297b8731f3c3d673cdcab`, `src/libretro/input.cpp` and
 `src/libretro/libretro_core_options.h`. This source check does not establish
 that every deployed core binary was built from that commit.
+
+
+## Per-game core options and DS screen layout (2.23.0)
+
+Game JSON accepts a `coreOptions` object with up to 32 validated string
+settings. Each key becomes an EmulatorJS native default option for that game at
+startup. Retro Vault keeps control of thread settings, save location and
+interval, the DS touch-mode migration, and pinned 3DS options.
+
+For a sideways DS layout, set the core's own layout instead of `videoRotation`:
+
+```json
+{
+  "coreOptions": {
+    "melonds_screen_layout": "Left/Right",
+    "desmume_screens_layout": "left/right"
+  }
+}
+```
+
+melonDS accepts `Left/Right`, `Right/Left`, `Top/Bottom`, `Bottom/Top`, `Top
+Only`, `Bottom Only`, `Hybrid Top`, and `Hybrid Bottom`. DeSmuME uses lowercase
+values such as `left/right`, `right/left`, `top/bottom`, and `bottom/top`.
+
+RetroArch's `videoRotation` rotates presentation by changing the GL viewport.
+Pointer coordinates are still translated into that rotated viewport, while the
+NDS core maps them into its own unrotated framebuffer and screen-layout
+offsets. At 90 or 270 degrees the axes disagree, so a tap can fall outside the
+bottom-screen hit area and appear to do nothing. Core-side layouts keep the
+pointer and the screen rectangles in the same coordinate space.
 
 
 ## Native ROM routing correction (2.12.4)

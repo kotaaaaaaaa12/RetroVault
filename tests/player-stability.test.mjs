@@ -1884,3 +1884,23 @@ test('Azahar encrypted-content errors remain visible after the native frontend s
   assert.match(env.elements.get('player-message').textContent, /encrypted ROM/i);
   await vm.runInContext('shutdownPlayer()', env.context);
 });
+
+test('per-game core options become native defaults without replacing player-owned settings', async () => {
+  const game = { ...games[0], core: 'nds', rom: 'rom/test/library.nds', coreOptions: {
+    melonds_screen_layout: 'Left/Right',
+    desmume_screens_layout: 'left/right',
+    ejs_threads: 'enabled',
+    'save-state-location': 'local',
+    'bad key': 'x',
+    ['__proto__']: 'x',
+    melonds_touch_mode: 'Mouse'
+  } };
+  const env = await environment(playerSource, { games: [game] });
+  assert.equal(env.window.EJS_defaultOptions.melonds_screen_layout, 'Left/Right');
+  assert.equal(env.window.EJS_defaultOptions.desmume_screens_layout, 'left/right');
+  assert.equal(env.window.EJS_defaultOptions.ejs_threads, 'disabled');
+  assert.equal(env.window.EJS_defaultOptions['save-state-location'], 'browser');
+  assert.equal(env.window.EJS_defaultOptions['bad key'], undefined);
+  assert.equal(Object.hasOwn(env.window.EJS_defaultOptions, '__proto__'), false);
+  assert.equal(env.window.EJS_defaultOptions.melonds_touch_mode, 'Touch');
+});
