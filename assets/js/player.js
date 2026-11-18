@@ -52,6 +52,7 @@ let restoreConsoleDiagnostics = null;
 let restoreAudioContextTracking = null;
 let legacyLanguageLoader = false;
 let runtimeSupport = null;
+let dsTouchRotation = null;
 let threeDsStartupPolicy = null;
 let threeDsTouchPolicy = null;
 let restoreThreeDsCoreSettings = null;
@@ -243,7 +244,7 @@ function recordActivity(action, detail = {}) {
 function beginDiagnostics(game, threads, version = game.ejsVersion || DEFAULT_EJS_VERSION) {
   diagnostics = {
     schemaVersion: 1,
-    appVersion: "2.23.0",
+    appVersion: "2.24.0",
     emulatorVersion: version,
     dataPath: resolveDataPath(game),
     game: { id: game.id, title: game.title, core: game.core },
@@ -460,6 +461,21 @@ function configureDsTouchMode(game, core, loaderVersion) {
   } catch (error) {
     console.debug('Saved DS touch preference migration was unavailable:', error);
   }
+}
+
+function installDsTouchRotation(emulator, game) {
+  const core = emulator?.getCore?.() || game.coreOverride || game.core;
+  if (!['nds', 'melonds', 'desmume', 'desmume2015'].includes(core)) return;
+  const rotation = Number.isInteger(game.videoRotation) ? game.videoRotation : 0;
+  if (!rotation) return;
+  if (['desmume', 'desmume2015'].includes(core)) {
+    const nativeRotation = window.EJS_defaultOptions?.desmume_input_rotation;
+    if (nativeRotation != null && String(nativeRotation) !== '0') return;
+  }
+  if (typeof window.RetroTouchRotation !== 'function' || !emulator?.canvas) return;
+  dsTouchRotation?.detach();
+  dsTouchRotation = new window.RetroTouchRotation(emulator.canvas, (4 - rotation) % 4);
+  if (!dsTouchRotation.attach()) dsTouchRotation = null;
 }
 
 function showMessage(key, isError = false, values = {}) {
@@ -682,6 +698,7 @@ function startEmulator(game, gameUrl, requestedThreads) {
     sampleDiagnostics("waiting-for-start");
     const emulator = window.EJS_emulator;
     install3dsCoreSettings(emulator);
+    installDsTouchRotation(emulator, game);
     if (threeDsMonitor) {
       threeDsMonitor.onChange = () => sampleDiagnostics();
       try { threeDsMonitor.attach(emulator); }
@@ -867,6 +884,8 @@ function shutdownPlayer(reason = "close") {
   localPreparationController.abort();
   threeDsMonitor?.stop();
   restoreThreeDsCoreSettings?.();
+  dsTouchRotation?.detach();
+  dsTouchRotation = null;
   runtimeSupport?.stop();
   const romCleanup = lazyRom?.stop();
   renderRomPreparation(null);

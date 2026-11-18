@@ -15,6 +15,7 @@ const i18nSource = await readFile(new URL('../assets/js/i18n.js', import.meta.ur
 const saveStorageSource = await readFile(new URL('../assets/js/save-storage.js', import.meta.url), 'utf8');
 const savesSource = await readFile(new URL('../assets/js/saves.js', import.meta.url), 'utf8');
 const saveBridgeSource = await readFile(new URL('../assets/js/save-bridge.js', import.meta.url), 'utf8');
+const touchRotationSource = await readFile(new URL('../assets/js/touch-rotation.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const games = [{ id: 1, title: 'Test Game', core: 'nes', rom: 'Test Game.nes' }];
 
@@ -57,6 +58,7 @@ class Element {
   getAttribute(key) { return this.attributes.get(key) ?? null; }
   querySelectorAll() { return []; }
   querySelector() { return null; }
+  getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; }
   focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; }
   blur() { if (this.ownerDocument) this.ownerDocument.activeElement = this.ownerDocument.body; }
   click() { this.dispatch('click'); }
@@ -143,6 +145,7 @@ async function environment(source, options = {}) {
   vm.runInContext(i18nSource, context);
   vm.runInContext(runtimeSupportSource, context);
   vm.runInContext(resourceDiagnosticsSource, context);
+  vm.runInContext(touchRotationSource, context);
   if (options.loadThreeDsTest) vm.runInContext(threeDsSource, context);
   if (options.loadSaves) {
     vm.runInContext(saveStorageSource, context);
@@ -1903,4 +1906,41 @@ test('per-game core options become native defaults without replacing player-owne
   assert.equal(env.window.EJS_defaultOptions['bad key'], undefined);
   assert.equal(Object.hasOwn(env.window.EJS_defaultOptions, '__proto__'), false);
   assert.equal(env.window.EJS_defaultOptions.melonds_touch_mode, 'Touch');
+});
+
+test('DS video rotation remaps touch and mouse coordinates before the core input driver', async () => {
+  const game = { ...games[0], core: 'nds', rom: 'rom/test/library.nds', videoRotation: 1 };
+  const env = await environment(playerSource, { games: [game] });
+  const canvas = new Element();
+  canvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 200 });
+  env.window.EJS_emulator = { getCore: () => 'melonds', canvas, config: {}, download() {}, ejs_version: '4.3.0-pre' };
+  env.window.EJS_ready();
+  let touch = null;
+  canvas.addEventListener('touchstart', event => { touch = event.touches[0]; });
+  const original = { identifier: 1, clientX: 85, clientY: 70, pageX: 90, pageY: 77, screenX: 85, screenY: 70, target: canvas };
+  canvas.dispatch('touchstart', { type: 'touchstart', touches: [original], targetTouches: [original], changedTouches: [original] });
+  assert.equal(touch.clientX, 35);
+  assert.equal(touch.clientY, 70);
+  assert.equal(touch.pageX, 40);
+  assert.equal(touch.pageY, 77);
+  let mouse = null;
+  canvas.addEventListener('mousemove', event => { mouse = event; });
+  canvas.dispatch('mousemove', { type: 'mousemove', clientX: 85, clientY: 70, pageX: 90, pageY: 77, screenX: 85, screenY: 70 });
+  assert.equal(mouse.clientX, 35);
+  assert.equal(mouse.clientY, 70);
+  assert.equal(mouse.pageX, 40);
+  assert.equal(mouse.pageY, 77);
+  await vm.runInContext('shutdownPlayer()', env.context);
+  assert.equal(canvas.addEventListener, canvas.constructor.prototype.addEventListener);
+});
+
+test('DS cores with native pointer rotation leave touch coordinates untouched', async () => {
+  const game = { ...games[0], core: 'nds', rom: 'rom/test/library.nds', videoRotation: 1,
+    coreOverride: 'desmume', coreOptions: { desmume_input_rotation: '270', desmume_pointer_type: 'touch' } };
+  const env = await environment(playerSource, { games: [game] });
+  const canvas = new Element();
+  env.window.EJS_emulator = { getCore: () => 'desmume', canvas, config: {}, download() {}, ejs_version: '4.3.0-pre' };
+  env.window.EJS_ready();
+  assert.equal(canvas.addEventListener, canvas.constructor.prototype.addEventListener);
+  await vm.runInContext('shutdownPlayer()', env.context);
 });

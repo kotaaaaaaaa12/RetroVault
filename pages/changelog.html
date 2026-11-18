@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.23.0">
-  <link rel="stylesheet" href="/assets/css/style.css?v=2.23.0">
-  <script src="/assets/js/i18n.js?v=2.23.0" defer></script>
-  <script src="/assets/js/changelog.js?v=2.23.0" defer></script>
+  <link rel="stylesheet" href="/assets/css/vault-theme.css?v=2.24.0">
+  <link rel="stylesheet" href="/assets/css/style.css?v=2.24.0">
+  <script src="/assets/js/i18n.js?v=2.24.0" defer></script>
+  <script src="/assets/js/changelog.js?v=2.24.0" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -34,8 +34,13 @@
     <h1 data-i18n="changelog">Changelog</h1>
     <p class="changelog-intro" data-i18n="changelogIntro">Changes to Retro Vault. These version numbers belong to this site, not EmulatorJS.</p>
 
+    <article class="release" aria-labelledby="release-ds-touch-rotation">
+      <div class="release-meta"><span>2.24.0</span><time datetime="2026-11-18">2026-11-18</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <h2 id="release-ds-touch-rotation" data-i18n="releaseDsTouchRotationTitle">Keep DS touch aligned when rotating the screen</h2>
+      <ul><li data-i18n="releaseDsTouchRotationDetails">DS games can now use videoRotation for a true 90, 180, or 270-degree presentation while canvas mouse and touch coordinates are rotated back into the core's screen layout. Taps stay aligned with the bottom screen on melonDS and on DeSmuME when its pointer type is touch. A nonzero desmume_input_rotation leaves coordinate rotation to the core, avoiding a double transform.</li></ul>
+    </article>
     <article class="release" aria-labelledby="release-game-core-options">
-      <div class="release-meta"><span>2.23.0</span><time datetime="2026-11-18">2026-11-18</time><span class="release-latest" data-i18n="latestRelease">Latest</span></div>
+      <div class="release-meta"><span>2.23.0</span><time datetime="2026-11-18">2026-11-18</time></div>
       <h2 id="release-game-core-options" data-i18n="releaseGameCoreOptionsTitle">Set core options per game</h2>
       <ul><li data-i18n="releaseGameCoreOptionsDetails">Game JSON now accepts a coreOptions object whose validated keys become native EmulatorJS default options for that game only. For sideways DS layouts use melonds_screen_layout or desmume_screens_layout instead of videoRotation: RetroArch video rotation only changes presentation, so pointer coordinates no longer match the core's screen layout and touch input can miss the bottom screen. Player-owned thread, save-location, save-interval and DS touch-mode settings remain in control.</li></ul>
     </article>

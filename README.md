@@ -5,10 +5,10 @@ served by Cloudflare Workers. The default emulator is pinned to **4.3.0-pre**.
 
 ## Site versions
 
-The current Retro Vault release is **2.23.0**. Site releases use
-`major.minor.patch`: large compatible updates increment the minor (2.22.0 →
-2.23.0), bug fixes and other small updates increment the patch (2.23.0 →
-2.23.1), and an update large enough to break compatibility moves to 3.x.x.
+The current Retro Vault release is **2.24.0**. Site releases use
+`major.minor.patch`: large compatible updates increment the minor (2.23.0 →
+2.24.0), bug fixes and other small updates increment the patch (2.24.0 →
+2.24.1), and an update large enough to break compatibility moves to 3.x.x.
 Update `version.txt`, the root
 package and lockfile versions, diagnostic `appVersion` values, asset query
 versions (including the local ROM reader worker), and the changelog together.
@@ -437,7 +437,8 @@ settings. Each key becomes an EmulatorJS native default option for that game at
 startup. Retro Vault keeps control of thread settings, save location and
 interval, the DS touch-mode migration, and pinned 3DS options.
 
-For a sideways DS layout, set the core's own layout instead of `videoRotation`:
+Use the core's own layout options when you want to change which screen appears
+where without rotating the whole image:
 
 ```json
 {
@@ -450,14 +451,29 @@ For a sideways DS layout, set the core's own layout instead of `videoRotation`:
 
 melonDS accepts `Left/Right`, `Right/Left`, `Top/Bottom`, `Bottom/Top`, `Top
 Only`, `Bottom Only`, `Hybrid Top`, and `Hybrid Bottom`. DeSmuME uses lowercase
-values such as `left/right`, `right/left`, `top/bottom`, and `bottom/top`.
+values such as `left/right`, `right/left`, `top/bottom`, and `bottom/top`. For a
+true 90-degree rotation, see the touch-safe `videoRotation` section below.
 
-RetroArch's `videoRotation` rotates presentation by changing the GL viewport.
-Pointer coordinates are still translated into that rotated viewport, while the
-NDS core maps them into its own unrotated framebuffer and screen-layout
-offsets. At 90 or 270 degrees the axes disagree, so a tap can fall outside the
-bottom-screen hit area and appear to do nothing. Core-side layouts keep the
-pointer and the screen rectangles in the same coordinate space.
+
+## DS touch-safe video rotation (2.24.0)
+
+`videoRotation` rotates the whole presentation. For DS games, Retro Vault now
+applies the inverse rotation to canvas mouse and touch coordinates before the
+core input driver receives them. A 90 or 270-degree rotation therefore keeps
+taps aligned with the core's unrotated screen layout instead of falling outside
+the bottom-screen hit area.
+
+```json
+{
+  "videoRotation": 1
+}
+```
+
+`1` and `3` rotate by 90 and 270 degrees; `2` rotates by 180 degrees. With
+melonDS this works with the existing absolute touch mode. With DeSmuME, set
+`desmume_pointer_type` to `touch` so the core uses absolute pointer input. If
+`coreOptions.desmume_input_rotation` is set to a nonzero value, Retro Vault
+leaves coordinate rotation to the core instead of applying its own mapping.
 
 
 ## Native ROM routing correction (2.12.4)
